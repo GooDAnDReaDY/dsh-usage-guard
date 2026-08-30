@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<h3>Session Token-Usage Sanitizer & History Crash Guard for DeepSeek Harness</h3>
+<h3>Защита истории сессий от повреждения битыми данными токенов (NaN)</h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@goodandready/dsh-usage-guard"><img src="https://img.shields.io/npm/v/@goodandready/dsh-usage-guard.svg?style=for-the-badge&color=6366f1&labelColor=1e1b4b" alt="npm version"></a>
@@ -21,20 +21,20 @@
 
 ---
 
-## ⚡ Overview
+## ⚡ Обзор
 
-**`dsh-usage-guard`** intercepts and sanitizes malformed or non-numeric token metrics (`NaN`) returned by upstream providers, preventing chat history corruption.
+**`dsh-usage-guard`** перехватывает и санитизирует повреждённые метрики токенов (`NaN`) от нестандартных API-провайдеров, предотвращая падение истории сессий при загрузке.
 
 ```mermaid
 graph LR
-    Upstream[Provider LLM API Stream] -->|Returns malformed NaN token usage| Guard[dsh-usage-guard Sanitizer]
-    Guard -->|Sanitizes NaN to valid number| Storage[Session History Storage]
-    Storage --> Clean[✅ Safe History Serialization & Replay]
+    Upstream[Поток LLM от провайдера] -->|Отдаёт повреждённые токены NaN| Guard[Санитизатор dsh-usage-guard]
+    Guard -->|Коррекция NaN в валидные числа| Storage[Хранилище истории сессий]
+    Storage --> Clean[✅ Безопасная загрузка старых диалогов]
 ```
 
 ---
 
-## 📦 Quick Installation
+## 📦 Быстрая установка
 
 ```bash
 dsh plugin --profile web add @goodandready/dsh-usage-guard
@@ -42,6 +42,6 @@ dsh plugin --profile web add @goodandready/dsh-usage-guard
 
 ---
 
-## 📄 License
+## 📄 Лицензия
 
 MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)
