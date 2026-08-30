@@ -1,133 +1,74 @@
-# dsh-usage-guard
+# 📦 @goodandready/dsh-usage-guard
 
-A one-purpose patch for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh):
-**one malformed token-usage sample should not take a whole session history down with it.**
+<div align="center">
 
-## The failure
+[![npm version](https://img.shields.io/npm/v/@goodandready/dsh-usage-guard.svg?style=flat-square)](https://www.npmjs.com/package/@goodandready/dsh-usage-guard)
+[![license](https://img.shields.io/github/license/GooDAnDReaDY/dsh-usage-guard.svg?style=flat-square)](LICENSE)
+[![DSH Plugin](https://img.shields.io/badge/DSH-Plugin-6366f1.svg?style=flat-square)](https://github.com/topics/dsh-plugin)
 
-Open a session and get this instead of your conversation:
+**[ 🇬🇧 English ](#-english) • [ 🇷🇺 Русский ](#-русский) • [ 🇨🇳 中文 ](#-中文)**
 
-```
-history unavailable for session "session-…":
-  { "expected": "number", "code": "invalid_type", "received": "NaN",
-    "path": [ "uncachedInputTokens" ],
-    "message": "Invalid input: expected number, received NaN" }
-```
+</div>
 
-Not a wrong number in a counter — no history at all. And it stays that way,
-because the session summary is recomputed by replaying the log every time.
+---
 
-## The cause
+<a name="-english"></a>
+## 🇬🇧 English
 
-The harness folds provider-reported usage into four buckets, and guards two of
-the four:
+Session token-usage sanitizer for DeepSeek Harness: prevents chat history corruption when providers return malformed or non-numeric token metrics (`NaN`).
 
-```js
-const bucketsFrom = (usage) => ({
-  uncachedInputTokens: usage.inputTokens,          // unguarded
-  outputTokens:        usage.outputTokens,         // unguarded
-  cacheReadTokens:     usage.cacheReadTokens ?? 0, // guarded
-  cacheWriteTokens:    usage.cacheWriteTokens ?? 0,// guarded
-})
-```
+### Features
 
-Cache fields are optional because plenty of providers never send them. The two
-that are not guarded are just as optional in practice: providers disagree about
-the shape of a usage report, and some send only part of it. One sample without
-`inputTokens` turns the running total into `NaN`, the schema refuses it, and the
-whole history goes with it.
+- **NaN Protection**: Sanitizes missing or invalid token counters before history serialization.
+- **Session Crash Prevention**: Guarantees past chat sessions load smoothly without replay crashes.
+- **Zero Performance Impact**: Lightweight synchronous middleware.
 
-## What this plugin does
-
-It steps in front of the fold. A counter that is missing, `null`, `NaN` or not a
-number at all is repaired before the harness adds it up.
-
-Zero is the last resort, not the first move. Providers disagree about what to
-call the same number — `inputTokens`, `input_tokens`, `input`, `promptTokens` —
-and the harness knows one spelling, so the rest read as absent even though the
-figure is sitting right there. The plugin looks under the usual other names
-first and only falls back to zero when there is genuinely nothing to take.
-
-Because the fold is also where replay goes, **sessions that are already broken
-open again by themselves** — no session file is rewritten, nothing on disk is
-touched, and removing the plugin puts everything back exactly as it was.
-
-Zero in place of a missing counter is a known lie. But the choice is not between
-an exact total and an approximate one — it is between an approximate total and a
-conversation you cannot read.
-
-It also names the culprit. Each damaged sample is reported once, with the turn,
-the step and the raw object as it arrived:
-
-```
-[dsh-usage-guard] usage sample out of shape — turn 1, step 1;
-    arrived as: {"outputTokens":14,"cacheReadTokens":1024}; inputTokens zeroed
-[dsh-usage-guard] usage sample out of shape — turn 3, step 1;
-    arrived as: {"input":22533,"output":20}; inputTokens taken from an alias; outputTokens taken from an alias
-```
-
-That line is the point of the reporting half: providers that send incomplete
-usage are worth knowing about, and a bare `NaN` never told you which one it was.
-
-## Install
+### Install
 
 ```bash
 dsh plugin --profile web add @goodandready/dsh-usage-guard
 ```
 
-Restart the harness afterwards. There is no UI and nothing to configure to get
-the fix — it works from the moment it loads.
+---
 
-## Settings
+<a name="-русский"></a>
+<details open>
+<summary><h2>🇷🇺 Русский (Полное руководство)</h2></summary>
 
-In `$DSH_HOME/settings.yaml` under `dsh-usage-guard:`, or in the profile:
+Защита истории сессий от повреждения битыми данными токенов в DeepSeek Harness: исключает падение истории диалогов при получении некорректных значений (`NaN`).
 
-| Field | Default | Description |
-|---|---|---|
-| `repair` | `true` | Replace a missing or non-numeric counter with zero before the fold. Off means reporting only — the fold sees the sample as it came, and a broken one keeps the history unreadable. |
-| `report` | `true` | Log the turn, the step and the raw sample when a damaged one arrives. Reported once per turn, step and field set, not once per replay. |
+### Возможности
 
-Turning `repair` off is for one situation: you want to see the failure happen
-rather than have it papered over.
+- **Защита от NaN**: санитизирует отсутствующие или нечисловые счетчики токенов до их сохранения.
+- **Стабильность истории**: гарантирует бесперебойную загрузку старых диалогов без ошибок.
+- **Нулевой оверхед**: легковесный фоновый middleware без задержек.
 
-## How it attaches
+### Установка
 
-Session projections live in an ordinary registry service, keyed by name, and
-each entry holds the `apply` the harness actually calls. The plugin wraps those.
-
-It wraps **all** of them, not one. Usage is read in three separate places —
-`tokenUsage` folds the four buckets, `contextPressure` computes its own sum for
-the prompt size, `contextBreakdown` its own for occupancy — and every one of
-them trips over the same missing counter. Keeping a list of keys in step with
-someone else's code is a standing debt; the guard is an identity for an event
-that carries no damaged usage, so a projection that never looks at usage pays
-one comparison and gets the very same event object it would have got anyway.
-
-Load order does not matter: whatever is already registered is wrapped
-immediately, and whatever registers later is caught as it lands in the registry.
-
-Nothing is patched by editing files, so a harness upgrade replaces the code this
-plugin wraps rather than fighting with it. If a later version guards those two
-fields itself, this plugin becomes a no-op that only reports — and can be
-removed.
-
-## Structure
-
-```
-dsh-usage-guard/
-├── package.json         # dsh bundle metadata + peerDependencies
-├── cordis.patch.yml     # bundle layer: inserts the plugin row
-├── lib/index.js         # the plugin: settings, reporting, attachment
-├── lib/usage.js         # what counts as damaged and what it becomes — pure
-├── lib/patch.js         # how the guard gets in front of the fold — pure
-├── test/                # unit tests, no harness required
-├── README.md
-└── LICENSE              # MIT
+```bash
+dsh plugin --profile web add @goodandready/dsh-usage-guard
 ```
 
-Host half only — no browser code. No npm runtime dependencies, no build step,
-plain ESM.
+</details>
 
-## License
+---
 
-MIT
+<a name="-中文"></a>
+<details>
+<summary><h2>🇨🇳 中文 (完整技术文档)</h2></summary>
+
+DeepSeek Harness 会话 Token 用量数据清洗与防崩守护插件：防止服务商返回格式错误的用量数据 (`NaN`) 导致历史记录损坏。
+
+### 核心亮点
+
+- **`NaN` 异常修复**：在历史记录持久化前自动将无效计数器修正为安全数值。
+- **保障会话稳定性**：彻底解决因上游数据异常引发的历史会话加载崩溃。
+- **零性能损耗**：轻量级后台同步拦截器。
+
+### 安装方法
+
+```bash
+dsh plugin --profile web add @goodandready/dsh-usage-guard
+```
+
+</details>
