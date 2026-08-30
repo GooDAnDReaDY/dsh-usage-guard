@@ -21,44 +21,49 @@
 
 ---
 
-## ⚡ The Problem: How Upstream Providers Poison Session History
+## ⚡ The Root Problem: How Upstream Providers Poison Session History
 
 In **DeepSeek Harness**, session projections aggregate cumulative token usage across four core buckets:
-* `inputTokens`
-* `outputTokens`
-* `cacheReadTokens`
-* `cacheWriteTokens`
 
-The core harness assumes that upstream providers will always return valid finite numbers for `inputTokens` and `outputTokens`. 
+```javascript
+uncachedInputTokens: usage.inputTokens,        // No safety fallback in DSH core!
+outputTokens:        usage.outputTokens,       // No safety fallback in DSH core!
+cacheReadTokens:     usage.cacheReadTokens ?? 0,
+cacheWriteTokens:    usage.cacheWriteTokens ?? 0,
+```
 
-However, non-standard upstream providers, local inference engines (vLLM, Ollama), third-party gateways, and community routers frequently emit malformed usage objects:
-* **Alternative field names**: `prompt_tokens`, `promptTokens`, `input`, `completion_tokens`, `output`, `cached_tokens`;
-* **Missing or null fields**: `undefined`, `null`;
-* **Non-finite numbers**: `NaN`, `Infinity`, or string numbers.
+While DSH core guards `cacheReadTokens` and `cacheWriteTokens` with `?? 0`, it takes `inputTokens` and `outputTokens` **as raw numbers without safety checks**.
 
-When standard DSH performs accumulation (`total += usage.inputTokens`), adding `NaN` or `undefined` instantly poisons the cumulative total into `NaN`. Once written to disk, **the entire conversation session becomes unreadable and crashes the Web UI upon reload**.
+When third-party providers, local inference servers, custom proxy gateways, or community routers return non-standard payloads, missing fields, or `NaN`, standard JavaScript arithmetic (`total += NaN`) instantly converts the session's cumulative token sum into `NaN`.
+
+Subsequently, DSH schema validation fatally rejects the entire session digest:
+```
+history unavailable for session "<session-id>": expected number, received NaN
+```
+
+Because session history in DSH is computed dynamically by **replaying the event log**, a single malformed token packet permanently bricks the entire conversation history from being opened ever again.
 
 ```mermaid
 graph LR
     subgraph Malformed [Upstream Provider Stream]
-        API[LLM Output Stream] -->|Emits prompt_tokens / NaN / null| Event[Session Event]
+        API[LLM Output Stream] -->|Returns prompt_tokens / NaN / null| Event[Session Event Chunk]
     end
 
     subgraph Unprotected [Without dsh-usage-guard]
         Event --> DSHMath[DSH Cumulative Arithmetic]
-        DSHMath -->|total += NaN| Poison[🚨 Cumulative Usage becomes NaN]
-        Poison --> DiskDead[Corrupted Session File on Disk]
-        DiskDead --> Crash[💥 Web UI Crashes on Reload]
+        DSHMath -->|total += NaN| Poison[🚨 Cumulative Total becomes NaN]
+        Poison --> SchemaFail[Schema Validation Rejection]
+        SchemaFail --> DeadHistory[💥 Session History Permanently Unreadable]
     end
 
     subgraph Guarded [With dsh-usage-guard Active]
-        Event --> Interceptor[sessionProjections Registry Patch]
-        Interceptor --> AliasCheck{Alias Borrowing Layer}
+        Event --> Patch[sessionProjections Interceptor]
+        Patch --> AliasCheck{Alias Borrowing Layer}
         AliasCheck -->|Maps prompt_tokens -> inputTokens| Restored[Restored Number]
-        AliasCheck -->|If missing / invalid| Zero[Safe 0 Fallback]
+        AliasCheck -->|If missing / NaN| ZeroFallback[Safe 0 Fallback]
         Restored --> SafeMath[Clean Arithmetic Execution]
-        Zero --> SafeMath
-        SafeMath --> SafeDisk[✅ 100% Intact Session History]
+        ZeroFallback --> SafeMath
+        SafeMath --> ValidHistory[✅ 100% Intact & Recovered Session History]
     end
 
     style Malformed fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
@@ -68,34 +73,35 @@ graph LR
 
 ---
 
-## 🛡️ Multi-Tier Healing Architecture
+## ✨ Key Features & Architectural Defense
 
-`dsh-usage-guard` intercepts `sessionProjections` events before cumulative addition and repairs usage payloads non-destructively:
+### 1. Instant Replay Recovery for Existing Corrupted Sessions
+The plugin does **not** alter or rewrite log files on disk. Instead, it hooks the projection fold at runtime. Because session replay passes through this exact interception point, **all previously broken or locked sessions are instantly restored and readable immediately upon installing the plugin**.
 
-### 1. Alias Borrowing (`borrowed`)
-Before defaulting to zero, the guard searches common provider alias dictionaries:
-* **`inputTokens`** ← `prompt_tokens`, `promptTokens`, `input`
-* **`outputTokens`** ← `completion_tokens`, `completionTokens`, `output`
-* **`cacheReadTokens`** ← `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens`
-* **`cacheWriteTokens`** ← `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens`
+### 2. Comprehensive Alias Borrowing Lexicon (`borrowed`)
+Before substituting zero, `dsh-usage-guard` scans an extensive dictionary of industry-standard field aliases:
 
-### 2. Finite Number Validation (`sound`)
-Verifies `typeof value === 'number' && Number.isFinite(value)` to reject `NaN`, `Infinity`, and malformed strings.
+| Target DSH Field | Recognized Vendor Aliases |
+|---|---|
+| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens` |
+| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens` |
+| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens` |
+| `cacheWriteTokens` | `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens` |
 
-### 3. Safe Zero Fallback (`repaired`)
-If a required metric cannot be recovered via aliases, it is safely initialized to `0`. While an approximate metric, it completely prevents arithmetic poisoning and guarantees session durability.
+### 3. Finite Soundness Validation (`sound`)
+Strictly validates `typeof value === 'number' && Number.isFinite(value)` to filter out `NaN`, `Infinity`, `null`, `undefined`, and malformed strings before they reach arithmetic operations.
 
-### 4. Diagnostic Logging (`complaint`)
-When a damaged usage object is sanitized, the plugin logs the exact turn, step, original payload, and whether fields were mapped via aliases or zeroed.
+### 4. Safe Zero Fallback (`repaired`)
+If a counter cannot be resolved from aliases, it is safely initialized to `0`. The choice is not between exact and approximate numbers, but between approximate token counts and an unreadable dead session.
 
----
+### 5. In-Memory Registry Monkey-Patching (`lib/patch.js`)
+* **Pre-existing Projections**: Wraps all `.apply` methods currently registered in `sessionProjections.registrations`.
+* **Late-Binding Projections**: Traps future projection registrations via `map.set` wrapping, guaranteeing 100% coverage regardless of plugin loading order.
+* **Universal Projection Protection**: Protects not only token counters, but also context pressure calculators and busy-state analyzers.
+* **Zero Performance Overhead**: Uses shallow event cloning only along the usage path; all other event data references remain untouched.
 
-## 🔌 In-Memory Projection Hook (`lib/patch.js`)
-
-The plugin patches the `sessionProjections` registry in-memory:
-* **Pre-existing Projections**: Wraps all existing `.apply` projection handlers currently active in the service.
-* **Late-Binding Projections**: Traps future projection registrations via `map.set` wrapping, ensuring 100% coverage regardless of plugin load order.
-* **Zero Overhead**: Uses shallow event cloning only along the usage path, preserving all other event references intact.
+### 6. Deduplicated Diagnostic Reporting (`told`)
+Logs informative diagnostic warnings naming the exact turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays.
 
 ---
 
@@ -106,7 +112,22 @@ dsh plugin --profile web add @goodandready/dsh-usage-guard
 ```
 
 > [!IMPORTANT]
-> Restart DSH after installation (`systemctl --user restart dsh-web`) to activate projection protection.
+> Restart DSH Web UI after installation (`systemctl --user restart dsh-web`) to activate protection and instantly revive any previously locked sessions.
+
+---
+
+## ⚙️ Configuration Reference (`settings.yaml`)
+
+```yaml
+dsh-usage-guard:
+  repair: true
+  report: true
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `repair` | `boolean` | `true` | Replace missing or non-numeric token counters with zero before arithmetic accumulation |
+| `report` | `boolean` | `true` | Log diagnostic warning lines naming turn, step, and raw sample when damaged metrics arrive |
 
 ---
 

@@ -21,22 +21,27 @@
 
 ---
 
-## ⚡ В чём проблема: как провайдеры ломают историю сессий
+## ⚡ В чём суть проблемы: как провайдеры ломают историю сессий
 
-В ядре **DeepSeek Harness** подсчёт суммарного расхода токенов в сессиях складывается из четырёх счётчиков:
-* `inputTokens`
-* `outputTokens`
-* `cacheReadTokens`
-* `cacheWriteTokens`
+В ядре **DeepSeek Harness** подсчёт суммарного расхода токенов складывается из четырёх счётчиков:
 
-Харнесс ожидает, что провайдер всегда присылает корректные конечные числа для `inputTokens` и `outputTokens`.
+```javascript
+uncachedInputTokens: usage.inputTokens,        // Без подстраховки в ядре DSH!
+outputTokens:        usage.outputTokens,       // Без подстраховки в ядре DSH!
+cacheReadTokens:     usage.cacheReadTokens ?? 0,
+cacheWriteTokens:    usage.cacheWriteTokens ?? 0,
+```
 
-Однако нестандартные провайдеры, локальные движки инференса (vLLM, Ollama), кастомные роутеры и прокси часто отдают данные в ином формате:
-* **Чужие имена полей**: `prompt_tokens`, `promptTokens`, `input`, `completion_tokens`, `output`, `cached_tokens`;
-* **Пропущенные поля**: `undefined` или `null`;
-* **Нечисловые значения**: `NaN`, `Infinity` или строки.
+Поля кэша ядро подстраховывает через `?? 0`, а первые два берёт **как есть, без проверки на число**.
 
-При сложении (`total += usage.inputTokens`) любое значение `NaN` или `undefined` превращает всю накопленную сумму в `NaN`. После сохранения файла на диск **вся история диалога становится нечитаемой и намертво роняет веб-интерфейс при повторном открытии**.
+Когда сторонний провайдер, локальный движок инференса, шлюз или роутер присылает нестандартные названия полей, пустые значения или `NaN`, стандартное сложение (`total += usage.inputTokens`) превращает сумму расхода сессии в `NaN`.
+
+После этого валидация схемы в ядре отвергает выжимку сессии:
+```
+history unavailable for session "<session-id>": expected number, received NaN
+```
+
+Поскольку история сессий в DSH рассчитывается на лету **путём повторного проигрывания журнала событий**, одна-единственная битая порция токенов навсегда блокирует открытие диалога в веб-интерфейсе.
 
 ```mermaid
 graph LR
@@ -45,20 +50,20 @@ graph LR
     end
 
     subgraph Unprotected [Без dsh-usage-guard]
-        Event --> DSHMath[Сложение расхода в DSH]
-        DSHMath -->|total += NaN| Poison[🚨 Сумма расхода превращается в NaN]
-        Poison --> DiskDead[Повреждённый файл сессии на диске]
-        DiskDead --> Crash[💥 Падение Web UI при открытии диалога]
+        Event --> DSHMath[Сложение расхода в ядре DSH]
+        DSHMath -->|total += NaN| Poison[🚨 Сумма расхода становится NaN]
+        Poison --> SchemaFail[Отказ проверки схемы]
+        SchemaFail --> DeadHistory[💥 История сессии заблокирована навсегда]
     end
 
     subgraph Guarded [С активным dsh-usage-guard]
-        Event --> Interceptor[Перехватчик sessionProjections]
-        Interceptor --> AliasCheck{Поиск по синонимам}
+        Event --> Patch[Перехватчик sessionProjections]
+        Patch --> AliasCheck{Поиск по синонимам}
         AliasCheck -->|prompt_tokens -> inputTokens| Restored[Восстановленное число]
-        AliasCheck -->|Если поле отсутствует| Zero[Безопасный ноль]
+        AliasCheck -->|Если число отсутствует| ZeroFallback[Безопасный 0]
         Restored --> SafeMath[Корректное сложение]
-        Zero --> SafeMath
-        SafeMath --> SafeDisk[✅ Полностью сохранная история сессий]
+        ZeroFallback --> SafeMath
+        SafeMath --> ValidHistory[✅ 100% Восстановленная и сохранная история]
     end
 
     style Malformed fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
@@ -68,34 +73,35 @@ graph LR
 
 ---
 
-## 🛡️ Многоуровневая система восстановления
+## ✨ Ключевые возможности и механизмы защиты
 
-`dsh-usage-guard` перехватывает события службы `sessionProjections` до вызова арифметики и восстанавливает повреждённые данные:
+### 1. Мгновенное восстановление ранее сломанных сессий
+Плагин **не модифицирует** файлы журналов на диске. Он встаёт перед операцией сложения в памяти. Так как проигрывание сессий идёт через эту же точку, **все ранее повреждённые сессии начинают открываться снова сразу после установки плагина**.
 
-### 1. Поиск по синонимам (`borrowed`)
-Прежде чем подставлять ноль, плагин проверяет альтернативные названия полей:
-* **`inputTokens`** ← `prompt_tokens`, `promptTokens`, `input`
-* **`outputTokens`** ← `completion_tokens`, `completionTokens`, `output`
-* **`cacheReadTokens`** ← `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens`
-* **`cacheWriteTokens`** ← `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens`
+### 2. Полный словарь синонимов полей (`borrowed`)
+Прежде чем подставлять ноль, плагин ищет значения в общепринятых полях других API:
 
-### 2. Проверка на конечное число (`sound`)
-Проверка `typeof value === 'number' && Number.isFinite(value)` исключает `NaN`, `Infinity` и строки.
+| Целевое поле DSH | Распознаваемые синонимы |
+|---|---|
+| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens` |
+| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens` |
+| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens` |
+| `cacheWriteTokens` | `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens` |
 
-### 3. Безопасная подстановка нуля (`repaired`)
-Если число найти не удалось, подставляется `0`. Это предотвращает порчу арифметики и сохраняет доступ к истории сессии.
+### 3. Проверка на конечное число (`sound`)
+Проверка `typeof value === 'number' && Number.isFinite(value)` гарантирует отсечение `NaN`, `Infinity`, `null`, `undefined` и строк.
 
-### 4. Журналирование инцидентов (`complaint`)
-При исправлении битой порции плагин логирует номер хода, шаг и способ исправления (взят по синониму или обнулён).
+### 4. Безопасная подстановка нуля (`repaired`)
+Если число найти не удалось, подставляется `0`. Выбор делается в пользу приблизительного счёта вместо полностью заблокированной истории.
 
----
-
-## 🔌 Безопасный перехват в памяти (`lib/patch.js`)
-
-Плагин патчит реестр проекций `sessionProjections` без модификации исходных файлов ядра:
-* **Существующие проекции**: оборачивает все уже зарегистрированные обработчики `.apply`.
+### 5. Безопасный перехват в памяти (`lib/patch.js`)
+* **Существующие проекции**: оборачивает все методы `.apply` в `sessionProjections.registrations`.
 * **Поздние проекции**: перехватывает будущие регистрации через хук `map.set`.
-* **Нулевой оверхед**: поверхностное клонирование только по пути объекта расхода, все остальные ссылки остаются оригинальными.
+* **Комплексная защита**: защищает не только токены, но и формулы давления на контекст и разбор занятости.
+* **Нулевой оверхед**: поверхностное клонирование применяется только к объекту расхода.
+
+### 6. Дедуплицированное журналирование (`told`)
+Выводит предупреждение с номером хода, шагом и способом починки (взят по синониму или обнулён). Одинаковые инциденты не спамят в лог при повторных проигрываниях.
 
 ---
 
@@ -104,6 +110,21 @@ graph LR
 ```bash
 dsh plugin --profile web add @goodandready/dsh-usage-guard
 ```
+
+---
+
+## ⚙️ Параметры конфигурации (`settings.yaml`)
+
+```yaml
+dsh-usage-guard:
+  repair: true
+  report: true
+```
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `repair` | `boolean` | `true` | Заменять пропущенные и нечисловые значения на ноль до сложения |
+| `report` | `boolean` | `true` | Логировать информацию о поврежденных порциях в консоль |
 
 ---
 

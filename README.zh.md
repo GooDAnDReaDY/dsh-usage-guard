@@ -21,37 +21,45 @@
 
 ---
 
-## ⚡ 核心痛点：服务商异常格式如何导致会话历史崩溃
+## ⚡ 核心痛点深度剖析：上游格式异常如何导致会话历史永久损坏
 
-在 **DeepSeek Harness** 中，会话累加统计 4 种 Token 计数：
-* `inputTokens`
-* `outputTokens`
-* `cacheReadTokens`
-* `cacheWriteTokens`
+在 **DeepSeek Harness** 核心架构中，会话投影累加 4 类 Token 计数：
 
-当非标服务商或本地代理返回 `prompt_tokens`、`null` 或 `NaN` 时，核心累加逻辑 (`total += usage.inputTokens`) 会将累计用量污染为 `NaN`，导致落盘后的**历史对话记录在下次打开时彻底崩溃**。
+```javascript
+uncachedInputTokens: usage.inputTokens,        // 核心源码无默认兜底保护！
+outputTokens:        usage.outputTokens,       // 核心源码无默认兜底保护！
+cacheReadTokens:     usage.cacheReadTokens ?? 0,
+cacheWriteTokens:    usage.cacheWriteTokens ?? 0,
+```
+
+当第三方服务商、本地引擎或网关返回非标字段、空值或 `NaN` 时，累加逻辑 (`total += usage.inputTokens`) 会将累计用量污染为 `NaN`，导致架构模式校验致命拒绝：
+```
+history unavailable for session "<session-id>": expected number, received NaN
+```
+
+由于 DSH 历史记录是通过重放事件流动态计算生成的，**单个损坏的数据块会导致整个历史对话永久白屏且无法重新打开**。
 
 ```mermaid
 graph LR
-    subgraph Malformed [服务商返回异常数据]
+    subgraph Malformed [上游返回异常格式]
         API[模型输出流] -->|返回 prompt_tokens / NaN / null| Event[会话事件]
     end
 
     subgraph Unprotected [未开启防护]
-        Event --> DSHMath[DSH 累加计算]
+        Event --> DSHMath[DSH 原生累加运算]
         DSHMath -->|total += NaN| Poison[🚨 累计用量全变为 NaN]
-        Poison --> DiskDead[损坏的会话存储文件]
-        DiskDead --> Crash[💥 前端打开对话直接白屏崩溃]
+        Poison --> SchemaFail[模式校验致命失败]
+        SchemaFail --> DeadHistory[💥 历史记录永久锁定损坏]
     end
 
     subgraph Guarded [开启 dsh-usage-guard]
-        Event --> Interceptor[sessionProjections 拦截器]
-        Interceptor --> AliasCheck{同义名字段映射}
+        Event --> Patch[sessionProjections 拦截器]
+        Patch --> AliasCheck{同义名字典检索}
         AliasCheck -->|prompt_tokens -> inputTokens| Restored[恢复有效数字]
-        AliasCheck -->|缺失字段| Zero[安全兜底赋 0]
+        AliasCheck -->|缺失字段| ZeroFallback[安全 0 值兜底]
         Restored --> SafeMath[安全累加计算]
-        Zero --> SafeMath
-        SafeMath --> SafeDisk[✅ 会话历史 100% 完好无损]
+        ZeroFallback --> SafeMath
+        SafeMath --> ValidHistory[✅ 100% 修复并完好读取会话历史]
     end
 
     style Malformed fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
@@ -61,12 +69,13 @@ graph LR
 
 ---
 
-## 🛡️ 多级清洗恢复体系
+## ✨ 核心亮点与保护机制
 
-1. **同义名字段提取 (`borrowed`)**：智能映射 `prompt_tokens`、`completion_tokens`、`cached_tokens` 等数十种主流字段；
-2. **有限数字有效性校验 (`sound`)**：严格过滤 `NaN`、`Infinity` 与字符串；
-3. **安全 0 值兜底 (`repaired`)**：无法提取时安全填充 0，彻底阻断算术污染；
-4. **内存无侵入拦截 (`lib/patch.js`)**：动态切入 `sessionProjections`，覆盖所有前置与后置投影。
+1. **已损坏历史记录免修文件即刻复活**：不修改磁盘日志，在内存重放链路拦截修复；
+2. **主流别名字典智能提取 (`borrowed`)**：覆盖 `prompt_tokens`、`completion_tokens`、`cached_tokens` 等；
+3. **有限数字安全性校验 (`sound`)**：剔除 `NaN`、`Infinity` 与字符串；
+4. **安全 0 值兜底 (`repaired`)**：彻底阻断算术污染；
+5. **内存投影注册表动态切入 (`lib/patch.js`)**：无缝覆盖前置与后置投影。
 
 ---
 
