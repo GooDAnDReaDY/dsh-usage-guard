@@ -1,6 +1,6 @@
 {
   "name": "@goodandready/dsh-usage-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Keeps a malformed token-usage sample from taking a whole session history down with it: a missing or non-numeric counter becomes zero before the harness adds it up, so the fold never yields NaN and already-broken sessions open again.",
   "keywords": [
     "deepseek-harness",
@@ -29,6 +29,8 @@
     "lib/",
     "cordis.patch.yml",
     "README.md",
+    "README.ru.md",
+    "README.zh.md",
     "LICENSE"
   ],
   "license": "MIT",

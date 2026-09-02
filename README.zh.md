@@ -76,10 +76,28 @@ graph LR
 ## ✨ 核心亮点与保护机制
 
 1. **已损坏历史记录免修文件即刻复活**：不修改磁盘日志，在内存重放链路拦截修复；
-2. **主流别名字典智能提取 (`borrowed`)**：覆盖 `prompt_tokens`、`completion_tokens`、`cached_tokens` 等；
-3. **有限数字安全性校验 (`sound`)**：剔除 `NaN`、`Infinity` 与字符串；
+2. **主流别名字典智能提取 (`borrowed`)**：覆盖 `prompt_tokens`、`completion_tokens`、`cached_tokens`、`promptTokenCount`、`prompt_eval_count` 等；
+3. **非负有限数字安全性校验 (`sound`)**：剔除 `NaN`、`Infinity`、负数错误码（如 `-1`）与非法格式；
 4. **安全 0 值兜底 (`repaired`)**：彻底阻断算术污染；
-5. **内存投影注册表动态切入 (`lib/patch.js`)**：无缝覆盖前置与后置投影。
+5. **内存投影注册表动态切入 (`lib/patch.js`)**：无缝覆盖前置与后置投影，完整保留 `this` 上下文；
+6. **防刷屏告警与内存保护 (`told`)**：集成会话识别与容量上限（1,000 项），杜绝内存泄漏与误抑制。
+
+---
+
+## 🚀 v0.1.1 版本更新说明 (Changed in v0.1.1)
+
+* **负数穿透防护 (`nonnegative`)**：
+  在 v0.1.0 中，部分代理网关返回的 `-1` 能通过有限数检测，进而导致 DSH 模式校验报错。v0.1.1 严格要求 `value >= 0`，负数将被识别为损坏并安全置 0。
+* **数字字符串安全转换 (Stringified Numbers)**：
+  部分上游返回的字符串数字（如 `inputTokens: "1540"`）在 v0.1.1 中将安全转换为真正数值，不再误重置为 0。
+* **主流模型生态别名扩充**：
+  - **Google Gemini API**：新增 `promptTokenCount`、`candidatesTokenCount`、`cachedContentTokenCount`。
+  - **Ollama native API**：新增 `prompt_eval_count`、`eval_count`。
+  - **OpenAI 缓存详情**：新增嵌套对象 `prompt_tokens_details.cached_tokens` 支持。
+* **投影函数 `this` 上下文维持**：
+  修复 `wrapApply` 调用时缺失 `this` 的问题，确保与对象方法式投影兼容。
+* **日志防崩防护与跨会话隔离**：
+  日志格式化引入 `try...catch` 兜底，防止循环引用导致服务崩溃；告警去重引入会话维度标记，杜绝跨会话误抑制。
 
 ---
 

@@ -87,25 +87,44 @@ Before substituting zero, `dsh-usage-guard` scans an extensive dictionary of ind
 
 | Target DSH Field | Recognized Vendor Aliases |
 |---|---|
-| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens` |
-| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens` |
-| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens` |
+| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens`, `promptTokenCount`, `prompt_eval_count` |
+| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens`, `candidatesTokenCount`, `eval_count` |
+| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens`, `cachedContentTokenCount`, `prompt_tokens_details.cached_tokens` |
 | `cacheWriteTokens` | `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens` |
 
-### 3. Finite Soundness Validation (`sound`)
-Strictly validates `typeof value === 'number' && Number.isFinite(value)` to filter out `NaN`, `Infinity`, `null`, `undefined`, and malformed strings before they reach arithmetic operations.
+### 3. Finite Non-Negative Soundness Validation (`sound`)
+Strictly validates `typeof value === 'number' && Number.isFinite(value) && value >= 0` to filter out `NaN`, `Infinity`, `null`, `undefined`, negative error codes (e.g. `-1`), and malformed strings before they reach arithmetic operations.
 
 ### 4. Safe Zero Fallback (`repaired`)
 If a counter cannot be resolved from aliases, it is safely initialized to `0`. The choice is not between exact and approximate numbers, but between approximate token counts and an unreadable dead session.
 
 ### 5. In-Memory Registry Monkey-Patching (`lib/patch.js`)
-* **Pre-existing Projections**: Wraps all `.apply` methods currently registered in `sessionProjections.registrations`.
+* **Pre-existing Projections**: Wraps all `.apply` methods currently registered in `sessionProjections.registrations` while preserving full `this` context.
 * **Late-Binding Projections**: Traps future projection registrations via `map.set` wrapping, guaranteeing 100% coverage regardless of plugin loading order.
 * **Universal Projection Protection**: Protects not only token counters, but also context pressure calculators and busy-state analyzers.
 * **Zero Performance Overhead**: Uses shallow event cloning only along the usage path; all other event data references remain untouched.
 
 ### 6. Deduplicated Diagnostic Reporting (`told`)
-Logs informative diagnostic warnings naming the exact turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays.
+Logs informative diagnostic warnings naming the exact session, turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays, and the cache is capped at 1,000 items to prevent memory leaks.
+
+---
+
+## 🚀 Changed in v0.1.1
+
+* **Negative Number Protection (`nonnegative`)**:
+  In v0.1.0, negative counters like `-1` (sometimes returned by proxy gateways during rate limits or faults) passed finite-number checks and crashed DSH schema validation (`z.number().int().nonnegative()`). In v0.1.1, `sound()` strictly requires `value >= 0`. Any negative number is treated as corrupted and safely zeroed out.
+* **Safe Coercion of Stringified Numbers**:
+  If an upstream provider delivers valid token counts formatted as strings (e.g. `inputTokens: "1540"`), v0.1.1 coerces them into true numbers rather than resetting them to zero.
+* **Expanded Ecosystem Aliases**:
+  - **Google Gemini API**: added `promptTokenCount`, `candidatesTokenCount`, and `cachedContentTokenCount`.
+  - **Ollama native API**: added `prompt_eval_count` and `eval_count`.
+  - **OpenAI prompt caching**: added nested resolution of `prompt_tokens_details.cached_tokens`.
+* **Preservation of `this` Context in Projections**:
+  In `lib/patch.js`, `wrapApply` now dispatches via `original.call(this, state, guard(event))`, ensuring complete compatibility with class-based projection handlers.
+* **Crash-Proof Diagnostic Logging**:
+  In `complaint()`, object serialization is now safely protected with `try...catch` against circular structures and `BigInt` values.
+* **Session-Aware Deduplication & Memory Bound**:
+  Warning deduplication now incorporates `sessionId` to avoid cross-session warning suppression. `told` cache size is bounded to 1,000 entries to prevent memory growth in long-running processes.
 
 ---
 

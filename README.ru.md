@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<h3>Защита истории сессий от повреждения битыми данными токенов (NaN), санитизация расхода и страховка арифметики для DeepSeek Harness</h3>
+<h3>Санитайзер расхода токенов, защита от сбоев истории и сохранение сессий для DeepSeek Harness</h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@goodandready/dsh-usage-guard"><img src="https://img.shields.io/npm/v/@goodandready/dsh-usage-guard.svg?style=for-the-badge&color=6366f1&labelColor=1e1b4b" alt="npm version"></a>
@@ -87,25 +87,44 @@ graph LR
 
 | Целевое поле DSH | Распознаваемые синонимы |
 |---|---|
-| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens` |
-| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens` |
-| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens` |
+| `inputTokens` | `input_tokens`, `input`, `promptTokens`, `prompt_tokens`, `promptTokenCount`, `prompt_eval_count` |
+| `outputTokens` | `output_tokens`, `output`, `completionTokens`, `completion_tokens`, `candidatesTokenCount`, `eval_count` |
+| `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens`, `cachedContentTokenCount`, `prompt_tokens_details.cached_tokens` |
 | `cacheWriteTokens` | `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens` |
 
-### 3. Проверка на конечное число (`sound`)
-Проверка `typeof value === 'number' && Number.isFinite(value)` гарантирует отсечение `NaN`, `Infinity`, `null`, `undefined` и строк.
+### 3. Проверка на конечное неотрицательное число (`sound`)
+Проверка `typeof value === 'number' && Number.isFinite(value) && value >= 0` гарантирует отсечение `NaN`, `Infinity`, `null`, `undefined`, отрицательных чисел (напр. `-1` при ошибках прокси) и строк.
 
 ### 4. Безопасная подстановка нуля (`repaired`)
 Если число найти не удалось, подставляется `0`. Выбор делается в пользу приблизительного счёта вместо полностью заблокированной истории.
 
 ### 5. Безопасный перехват в памяти (`lib/patch.js`)
-* **Существующие проекции**: оборачивает все методы `.apply` в `sessionProjections.registrations`.
+* **Существующие проекции**: оборачивает все методы `.apply` в `sessionProjections.registrations` с полным сохранением контекста `this`.
 * **Поздние проекции**: перехватывает будущие регистрации через хук `map.set`.
 * **Комплексная защита**: защищает не только токены, но и формулы давления на контекст и разбор занятости.
 * **Нулевой оверхед**: поверхностное клонирование применяется только к объекту расхода.
 
 ### 6. Дедуплицированное журналирование (`told`)
-Выводит предупреждение с номером хода, шагом и способом починки (взят по синониму или обнулён). Одинаковые инциденты не спамят в лог при повторных проигрываниях.
+Выводит предупреждение с идентификатором сессии, номером хода, шагом и способом починки (взят по синониму или обнулён). Одинаковые инциденты не спамят в лог при повторных проигрываниях, а размер кэша ограничен 1000 записей для предотвращения утечек памяти.
+
+---
+
+## 🚀 Изменения в версии v0.1.1 (Changed in v0.1.1)
+
+* **Защита от отрицательных чисел (`nonnegative`)**:
+  В v0.1.0 значение `-1` (возвращаемое некоторыми шлюзами при ошибках) проходило проверку конечности числа и ломало схему DSH (`z.number().int().nonnegative()`). Начиная с v0.1.1 функция `sound()` строго требует `value >= 0`. Отрицательные значения теперь признаются повреждёнными и безопасно обнуляются.
+* **Безопасная коэрция числовых строк (Stringified Numbers)**:
+  Если провайдер возвращает валидное количество токенов строкой (например, `inputTokens: "1540"`), плагин в v0.1.1 больше не сбрасывает его в ноль, а безопасно приводит к настоящему числу (`1540`).
+* **Расширенная совместимость с экосистемами моделей**:
+  - **Google Gemini API**: добавлены `promptTokenCount`, `candidatesTokenCount`, `cachedContentTokenCount`.
+  - **Ollama native API**: добавлены `prompt_eval_count`, `eval_count`.
+  - **OpenAI prompt caching**: добавлена поддержка вложенного объекта `prompt_tokens_details.cached_tokens`.
+* **Сохранение контекста вызова `this` в проекциях**:
+  В `lib/patch.js` метод `wrapApply` переписан с сохранением `this` (`original.call(this, state, guard(event))`), обеспечивая полную совместимость с объектно-ориентированными проекциями.
+* **Отказоустойчивое логирование без риска краша**:
+  В функции `complaint()` сериализация данных экранирована `try...catch`, предотвращая падение рантайма при наличии циклических структур или `BigInt`.
+* **Изолированная межсессионная дедупликация**:
+  Ключ дедупликации предупреждений дополнен контекстом сессии (`sessionId`), что предотвращает ложное подавление сообщений об ошибках в последующих диалогах. Множество `told` ограничено 1000 элементами для защиты от утечек памяти.
 
 ---
 
