@@ -38,12 +38,14 @@ test('пропущенные кэш-поля прощаются, пропуще�
   assert.deepEqual(damage({ inputTokens: 1 }), ['outputTokens'])
 })
 
-test('нечисловое значение испорчено не меньше пропущенного', () => {
+test('нечисловое или отрицательное значение испорчено не меньше пропущенного', () => {
   assert.deepEqual(damage({ inputTokens: Number.NaN, outputTokens: 2 }), ['inputTokens'])
   assert.deepEqual(damage({ inputTokens: 1, outputTokens: null }), ['outputTokens'])
   assert.deepEqual(damage({ inputTokens: 1, outputTokens: 2, cacheReadTokens: Number.NaN }), ['cacheReadTokens'])
   assert.deepEqual(damage({ inputTokens: '12', outputTokens: 2 }), ['inputTokens'])
   assert.deepEqual(damage({ inputTokens: Infinity, outputTokens: 2 }), ['inputTokens'])
+  assert.deepEqual(damage({ inputTokens: -1, outputTokens: 2 }), ['inputTokens'], 'отрицательное число бракуется')
+  assert.deepEqual(damage({ inputTokens: 10, outputTokens: -5 }), ['outputTokens'], 'отрицательный output бракуется')
 })
 
 test('порция целиком не объект — испорчены оба основных счётчика', () => {
@@ -131,9 +133,51 @@ test('признаются привычные написания', () => {
   assert.equal(borrowed({ cached_tokens: 3 }, 'cacheReadTokens'), 3)
 })
 
+test('признаются синонимы Google Gemini API', () => {
+  assert.equal(borrowed({ promptTokenCount: 120 }, 'inputTokens'), 120)
+  assert.equal(borrowed({ candidatesTokenCount: 45 }, 'outputTokens'), 45)
+  assert.equal(borrowed({ cachedContentTokenCount: 30 }, 'cacheReadTokens'), 30)
+})
+
+test('признаются синонимы Ollama native API', () => {
+  assert.equal(borrowed({ prompt_eval_count: 55 }, 'inputTokens'), 55)
+  assert.equal(borrowed({ eval_count: 88 }, 'outputTokens'), 88)
+})
+
+test('признаются вложенные структуры кэша OpenAI (prompt_tokens_details)', () => {
+  const usage = {
+    prompt_tokens: 100,
+    completion_tokens: 20,
+    prompt_tokens_details: { cached_tokens: 64 },
+  }
+  assert.equal(borrowed(usage, 'cacheReadTokens'), 64)
+})
+
+test('числовые строки безопасно приводятся к числу', () => {
+  const usage = { inputTokens: '1540', outputTokens: '20' }
+  const bad = damage(usage)
+  assert.deepEqual(bad, ['inputTokens', 'outputTokens'])
+  const fixed = repaired(usage, bad)
+  assert.deepEqual(fixed, {
+    inputTokens: 1540,
+    outputTokens: 20,
+  })
+  assert.equal(typeof fixed.inputTokens, 'number')
+  assert.equal(typeof fixed.outputTokens, 'number')
+})
+
+test('отрицательное число в порции заменяется на 0', () => {
+  const usage = { inputTokens: -10, outputTokens: 50 }
+  const bad = damage(usage)
+  assert.deepEqual(bad, ['inputTokens'])
+  const fixed = repaired(usage, bad)
+  assert.deepEqual(fixed, { inputTokens: 0, outputTokens: 50 })
+})
+
 test('синоним с мусором внутри не признаётся', () => {
   assert.equal(borrowed({ input: null }, 'inputTokens'), undefined)
-  assert.equal(borrowed({ input: '22533' }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ input: 'не_число' }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ input: -5 }, 'inputTokens'), undefined)
   assert.equal(borrowed({}, 'inputTokens'), undefined)
 })
 
@@ -149,4 +193,15 @@ test('жалоба различает взятое по синониму и об
   const text = complaint(found, damage(found.usage))
   assert.match(text, /inputTokens взят по синониму/)
   assert.match(text, /outputTokens обнулён/)
+})
+
+test('жалоба не падает на циклических структурах или BigInt', () => {
+  const circular = { turn: 1, step: 1 }
+  circular.self = circular
+  const foundCircular = { usage: circular, turn: 1, step: 1, at: 'chunk' }
+  assert.doesNotThrow(() => complaint(foundCircular, ['inputTokens']))
+
+  const bigintUsage = { count: 100n }
+  const foundBigInt = { usage: bigintUsage, turn: 1, step: 1, at: 'chunk' }
+  assert.doesNotThrow(() => complaint(foundBigInt, ['inputTokens']))
 })

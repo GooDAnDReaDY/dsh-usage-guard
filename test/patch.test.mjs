@@ -38,7 +38,7 @@ const brokenEvent = {
 /** Обезвреживатель, какой ставит сам плагин, но без настроек и журнала. */
 const guard = (event) => {
   const usage = event.data && event.data.chunk && event.data.chunk.usage
-  if (!usage || typeof usage.inputTokens === 'number') return event
+  if (!usage || (typeof usage.inputTokens === 'number' && usage.inputTokens >= 0)) return event
   return {
     ...event,
     data: { ...event.data, chunk: { ...event.data.chunk, usage: { ...usage, inputTokens: 0 } } },
@@ -85,6 +85,20 @@ test('чужая проекция получает ровно то событи�
   const event = { type: 'turn/end', data: {} }
   assert.equal(entry.def.apply('как было', event), 'как было')
   assert.equal(seen, event, 'событие дошло тем же объектом')
+})
+
+test('wrapApply сохраняет контекст this при вызове', () => {
+  let capturedThis = null
+  const def = {
+    tag: 'custom-projection',
+    apply(state, event) {
+      capturedThis = this
+      return state
+    },
+  }
+  wrapApply(def, (e) => e)
+  def.apply({}, { type: 'test' })
+  assert.equal(capturedThis, def, 'контекст this сохранён')
 })
 
 test('снятие возвращает и складывание, и укладку в карту', () => {
