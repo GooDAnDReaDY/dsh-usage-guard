@@ -80,7 +80,22 @@ graph LR
 3. **非负有限数字安全性校验 (`sound`)**：剔除 `NaN`、`Infinity`、负数错误码（如 `-1`）与非法格式；
 4. **安全 0 值兜底 (`repaired`)**：彻底阻断算术污染；
 5. **内存投影注册表动态切入 (`lib/patch.js`)**：无缝覆盖前置与后置投影，完整保留 `this` 上下文；
-6. **防刷屏告警与内存保护 (`told`)**：集成会话识别与容量上限（1,000 项），杜绝内存泄漏与误抑制。
+6. **防刷屏告警与内存保护 (`told`)**：集成会话识别与容量上限（1,000 项），杜绝内存泄漏与误抑制；
+7. **原生 Web UI 设置卡片 (`lib/client.js`)**：嵌入 DSH 原生设置中心（`settings.plugin.item`），实时状态徽章与多语言支持。
+
+---
+
+## 🚀 v0.1.2 版本更新说明 (Changed in v0.1.2)
+
+* **原生 Web UI 设置卡片 (`settings.plugin.item`)**：
+  - 新增前端客户端模块 `lib/client.js`，在「设置 → 插件 → 插件设置」标签页注册原生卡片，绑定空间 `dsh-usage-guard`（Issue #2）。
+  - 支持直接交互配置 `repair`（自动修复异常计数）与 `report`（记录诊断警告）。
+  - 卡片头部支持实时状态徽章（开启时显示绿色 `ACTIVE`，仅审计时显示黄色 `REPORT ONLY`）。
+  - 严格遵循 DSH 原生设计规范（CSS 变量、12px 圆角、核心折叠图标 `IconChevronDownOutline14`、无障碍 `aria-expanded`）。
+  - 提供中、英、俄完整三语本地化支持（`zh` / `en` / `ru`）。
+  - 内置 `settings.section` 降级容错机制。
+* **设计契约**：
+  - 补充 `docs/design/DESIGN.md`，符合 `project-design-contract` 和 `dsh-ui-design` 标准。
 
 ---
 
@@ -106,6 +121,21 @@ graph LR
 ```bash
 dsh plugin --profile web add @goodandready/dsh-usage-guard
 ```
+
+---
+
+## ⚙️ 配置参考 (`settings.yaml` / Web UI)
+
+```yaml
+dsh-usage-guard:
+  repair: true
+  report: true
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `repair` | `boolean` | `true` | 在累加前将缺失或非数值的 Token 计数替换为 0 |
+| `report` | `boolean` | `true` | 接收到损坏用量样本时在日志输出警告信息 |
 
 ---
 

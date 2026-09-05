@@ -107,6 +107,23 @@ If a counter cannot be resolved from aliases, it is safely initialized to `0`. T
 ### 6. Deduplicated Diagnostic Reporting (`told`)
 Logs informative diagnostic warnings naming the exact session, turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays, and the cache is capped at 1,000 items to prevent memory leaks.
 
+### 7. Native Web UI Settings Card (`lib/client.js`)
+* Mounts into the native Settings tab under `Settings → Plugins → Plugin Settings` (`settings.plugin.item`) with real-time status badge and full localization.
+
+---
+
+## 🚀 Changed in v0.1.2
+
+* **Native Web UI Settings Card (`settings.plugin.item`)**:
+  - Added frontend client module `lib/client.js` registering a native configuration card under `Settings → Plugins → Plugin Settings` bound to namespace `dsh-usage-guard` (Issue #2).
+  - Interactive toggles for `repair` (automatic token counter repair) and `report` (diagnostic warning console logging).
+  - Real-time status badge in card header (`ACTIVE` when auto-repair is enabled, `REPORT ONLY` when passive audit is selected).
+  - Strict compliance with DSH native theme CSS variables, core chevron icon `IconChevronDownOutline14`, 12px border radius, and `aria-expanded` accessibility.
+  - Complete trilingual localization for English, Russian, and Chinese (`en`, `ru`, `zh`).
+  - Graceful fallback slot `settings.section` for legacy core versions without the plugin settings tab.
+* **Design Contract**:
+  - Added official UI design contract in `docs/design/DESIGN.md` complying with `project-design-contract` and `dsh-ui-design`.
+
 ---
 
 ## 🚀 Changed in v0.1.1
@@ -139,7 +156,7 @@ dsh plugin --profile web add @goodandready/dsh-usage-guard
 
 ---
 
-## ⚙️ Configuration Reference (`settings.yaml`)
+## ⚙️ Configuration Reference (`settings.yaml` / Web UI)
 
 ```yaml
 dsh-usage-guard:
