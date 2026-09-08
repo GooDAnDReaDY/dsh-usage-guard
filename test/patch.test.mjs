@@ -130,3 +130,19 @@ test('обёртка над чем попало ничего не ломает',
   assert.doesNotThrow(() => wrapApply({}, guard)())
   assert.doesNotThrow(() => patchRegistry(null, guard)())
 })
+test('guard с WeakMap возвращает один и тот же инстанс на повторный вызов', () => {
+  const cache = new WeakMap()
+  let runs = 0
+  const cachedGuard = (event) => {
+    if (cache.has(event)) return cache.get(event)
+    runs++
+    const res = guard(event)
+    cache.set(event, res)
+    return res
+  }
+
+  const res1 = cachedGuard(brokenEvent)
+  const res2 = cachedGuard(brokenEvent)
+  assert.equal(runs, 1, 'обезвреживание выполнено только один раз')
+  assert.equal(res1, res2, 'возвращена одна и та же ссылка')
+})

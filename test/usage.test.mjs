@@ -205,3 +205,23 @@ test('жалоба не падает на циклических структу�
   const foundBigInt = { usage: bigintUsage, turn: 1, step: 1, at: 'chunk' }
   assert.doesNotThrow(() => complaint(foundBigInt, ['inputTokens']))
 })
+test('дробное число (float) в порции округляется до целого неотрицательного числа', () => {
+  const usage = { inputTokens: 42.6, outputTokens: 10.2, cacheReadTokens: 0.8 }
+  const bad = damage(usage)
+  assert.deepEqual(bad, ['inputTokens', 'outputTokens', 'cacheReadTokens'])
+  const fixed = repaired(usage, bad)
+  assert.deepEqual(fixed, { inputTokens: 43, outputTokens: 10, cacheReadTokens: 1 })
+  assert.ok(Number.isInteger(fixed.inputTokens))
+  assert.ok(Number.isInteger(fixed.outputTokens))
+  assert.ok(Number.isInteger(fixed.cacheReadTokens))
+})
+
+test('строковое дробное число безопасно округляется до целого числа', () => {
+  const usage = { inputTokens: '1540.8', outputTokens: '99.1' }
+  const bad = damage(usage)
+  assert.deepEqual(bad, ['inputTokens', 'outputTokens'])
+  const fixed = repaired(usage, bad)
+  assert.deepEqual(fixed, { inputTokens: 1541, outputTokens: 99 })
+  assert.ok(Number.isInteger(fixed.inputTokens))
+  assert.ok(Number.isInteger(fixed.outputTokens))
+})
