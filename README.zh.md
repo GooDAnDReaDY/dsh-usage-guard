@@ -77,11 +77,29 @@ graph LR
 
 1. **已损坏历史记录免修文件即刻复活**：不修改磁盘日志，在内存重放链路拦截修复；
 2. **主流别名字典智能提取 (`borrowed`)**：覆盖 `prompt_tokens`、`completion_tokens`、`cached_tokens`、`promptTokenCount`、`prompt_eval_count` 等；
-3. **非负有限数字安全性校验 (`sound`)**：剔除 `NaN`、`Infinity`、负数错误码（如 `-1`）与非法格式；
-4. **安全 0 值兜底 (`repaired`)**：彻底阻断算术污染；
-5. **内存投影注册表动态切入 (`lib/patch.js`)**：无缝覆盖前置与后置投影，完整保留 `this` 上下文；
-6. **防刷屏告警与内存保护 (`told`)**：集成会话识别与容量上限（1,000 项），杜绝内存泄漏与误抑制；
-7. **原生 Web UI 设置卡片 (`lib/client.js`)**：嵌入 DSH 原生设置中心（`settings.plugin.item`），实时状态徽章与多语言支持。
+3. **严格非负整数有效性校验 (`sound`)**：剔除 `NaN`、`Infinity`、负数错误码（如 `-1`）、非整数浮点数与非法字符串；
+4. **安全 0 值兜底与浮点自动取整 (`repaired`)**：浮点数值与带小数数字字符串通过 `Math.round()` 转换为有效非负整数，彻底满足 Zod `z.number().int().nonnegative()` 模式校验；
+5. **内存投影注册表动态切入与 WeakMap 高性能缓存 (`lib/patch.js`, `lib/index.js`)**：无缝覆盖全部 10–15 个并发投影，同一事件仅处理一次，其余投影 $O(1)$ 快速返回；
+6. **防刷屏告警与 O(1) FIFO 内存保护 (`told`)**：容量上限为 1,000 项，达到上限时平滑淘汰最老记录，杜绝内存泄漏与误抑制；
+7. **原生 Web UI 设置卡片 (`lib/client.js`)**：嵌入 DSH 原生设置中心（`settings.plugin.item`），实时状态徽章、3 秒自动消失保存提示与多语言支持。
+
+---
+
+## 🚀 v0.1.3 版本更新说明 (Changed in v0.1.3)
+
+* **浮点与小数 Token 防崩保护 (Floats & Decimals)**：
+  - DeepSeek Harness `@deepseek-ai/dsh-token-meter` 的投影模式严格要求整数 (`z.number().int().nonnegative()`)。部分路由网关返回的非整数计数（如 `42.5`）此前会导致 Zod 校验失败。
+  - `sound()` 函数在 v0.1.3 中严格要求 `Number.isInteger(value)`。
+  - 浮点数及带小数点的数字字符串通过 `Math.round()` 自动四舍五入为有效非负整数（`42.6` $\rightarrow$ `43`），确保会话历史永不白屏。
+* **WeakMap 高性能事件缓存 (`guard`)**：
+  - 会话重放时有 10–15 个并发投影同时调用拦截器。
+  - 引入 `WeakMap<event, guardedEvent>` 微缓存：事件在首次调用时清洗并缓存，其余并发投影直接以 $O(1)$ 获取结果，消除重复克隆并杜绝内存泄漏。
+* **日志告警缓存 FIFO 平滑淘汰 (`told`)**：
+  - 将达到 1,000 条上限时的全量清空 `told.clear()` 改为 $O(1)$ 单条最旧数据淘汰 `told.delete(oldest)`，避免重新打开历史会话时日志重复刷屏。
+* **Web UI 设置卡片交互体验与无障碍优化**：
+  - 保存成功提示（"已保存"）支持 3 秒自动平滑淡出，且在修改任一复选框时立即重置。
+  - 支持在无未提交草稿时平滑同步服务端后台配置。
+  - 为表单项绑定 `id`/`htmlFor` 关联，并为折叠图标补充 `aria-hidden="true"` 无障碍属性。
 
 ---
 

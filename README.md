@@ -92,23 +92,41 @@ Before substituting zero, `dsh-usage-guard` scans an extensive dictionary of ind
 | `cacheReadTokens` | `cache_read_tokens`, `cachedTokens`, `cached_tokens`, `cache_read_input_tokens`, `cachedContentTokenCount`, `prompt_tokens_details.cached_tokens` |
 | `cacheWriteTokens` | `cache_write_tokens`, `cacheCreationTokens`, `cache_creation_input_tokens` |
 
-### 3. Finite Non-Negative Soundness Validation (`sound`)
-Strictly validates `typeof value === 'number' && Number.isFinite(value) && value >= 0` to filter out `NaN`, `Infinity`, `null`, `undefined`, negative error codes (e.g. `-1`), and malformed strings before they reach arithmetic operations.
+### 3. Finite Non-Negative Integer Soundness Validation (`sound`)
+Strictly validates `typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number.isInteger(value)` to filter out `NaN`, `Infinity`, `null`, `undefined`, negative error codes (e.g. `-1`), non-integer floats, and malformed strings.
 
-### 4. Safe Zero Fallback (`repaired`)
-If a counter cannot be resolved from aliases, it is safely initialized to `0`. The choice is not between exact and approximate numbers, but between approximate token counts and an unreadable dead session.
+### 4. Safe Zero Fallback & Float Rounding (`repaired`)
+If a counter cannot be resolved from aliases, it is safely initialized to `0`. Fractional tokens or decimal strings are safely rounded via `Math.round()`, strictly satisfying the core DSH contract `z.number().int().nonnegative()`.
 
 ### 5. In-Memory Registry Monkey-Patching (`lib/patch.js`)
 * **Pre-existing Projections**: Wraps all `.apply` methods currently registered in `sessionProjections.registrations` while preserving full `this` context.
 * **Late-Binding Projections**: Traps future projection registrations via `map.set` wrapping, guaranteeing 100% coverage regardless of plugin loading order.
 * **Universal Projection Protection**: Protects not only token counters, but also context pressure calculators and busy-state analyzers.
-* **Zero Performance Overhead**: Uses shallow event cloning only along the usage path; all other event data references remain untouched.
+* **Zero Performance Overhead**: Uses shallow event cloning only along the usage path, while a high-performance `WeakMap` cache ensures single execution across all 10–15 parallel DSH projections.
 
 ### 6. Deduplicated Diagnostic Reporting (`told`)
-Logs informative diagnostic warnings naming the exact session, turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays, and the cache is capped at 1,000 items to prevent memory leaks.
+Logs informative diagnostic warnings naming the exact session, turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays, and the cache is bounded to 1,000 entries with O(1) FIFO eviction.
 
 ### 7. Native Web UI Settings Card (`lib/client.js`)
-* Mounts into the native Settings tab under `Settings → Plugins → Plugin Settings` (`settings.plugin.item`) with real-time status badge and full localization.
+* Mounts into the native Settings tab under `Settings → Plugins → Plugin Settings` (`settings.plugin.item`) with real-time status badge, auto-dismissing save feedback, and full localization.
+
+---
+
+## 🚀 Changed in v0.1.3
+
+* **Fractional Token Protection (Floats & Decimals)**:
+  - DeepSeek Harness `@deepseek-ai/dsh-token-meter` projection schema enforces strict integers (`z.number().int().nonnegative()`). Fractional tokens (e.g. `42.5` or `"1540.2"` produced by routing proxies or weighted estimators) previously broke Zod schema validation.
+  - `sound()` now strictly validates `Number.isInteger(value)`.
+  - Floating-point numbers and decimal strings are now safely rounded to non-negative integers via `Math.round()` (`42.6` $\rightarrow$ `43`), protecting session history from schema rejections.
+* **High-Performance WeakMap Cache (`guard`)**:
+  - DSH executes 10–15 parallel projection folds for every session event.
+  - A `WeakMap<event, guardedEvent>` cache sanitizes each incoming event exactly once on the first projection, returning the cached normalized reference to all subsequent projections in $O(1)$ without re-parsing or memory leak risks.
+* **Strict O(1) FIFO Eviction in `told` Warning Cache**:
+  - Replaced bulk `told.clear()` with individual oldest key eviction `told.delete(oldest)` at 1,000 entries, maintaining continuous deduplication without sudden re-logging storms.
+* **Web UI Settings Card UX & A11y Polish**:
+  - Save status confirmation ("Saved") now automatically auto-dismisses after 3 seconds and clears immediately upon toggle adjustment.
+  - Added reactive external synchronization with server-side config changes when the user has no uncommitted draft.
+  - Enhanced accessibility: connected inputs to labels via `htmlFor`/`id` and tagged the chevron icon with `aria-hidden="true"`.
 
 ---
 
