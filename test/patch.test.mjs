@@ -109,7 +109,7 @@ test('снятие возвращает и складывание, и уклад
   const undo = patchRegistry(registry, guard)
   undo()
 
-  assert.ok(!Object.hasOwn(registry.registrations, 'set'), 'карта вернулась своя')
+  assert.equal(registry.registrations.set, Map.prototype.set, 'map.set restored to prototype method')
   const out = entry.def.apply({ input: 0, output: 0 }, brokenEvent)
   assert.ok(Number.isNaN(out.input), 'складывание вернулось прежнее')
 })

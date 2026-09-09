@@ -86,8 +86,8 @@ test('жалоба называет ход, шаг, поля и то, что р�
   const found = usageOf(chunk({ outputTokens: 2 }))
   const text = complaint(found, ['inputTokens'])
   assert.match(text, /inputTokens/)
-  assert.match(text, /ход 1/)
-  assert.match(text, /шаг 2/)
+  assert.match(text, /turn 1/)
+  assert.match(text, /step 2/)
   assert.match(text, /"outputTokens":2/)
 })
 
@@ -191,8 +191,8 @@ test('жалоба различает взятое по синониму и об
     data: { turn: 1, step: 1, chunk: { type: 'usage', usage: { input: 100 } } },
   })
   const text = complaint(found, damage(found.usage))
-  assert.match(text, /inputTokens взят по синониму/)
-  assert.match(text, /outputTokens обнулён/)
+  assert.match(text, /inputTokens recovered via alias/)
+  assert.match(text, /outputTokens zeroed/)
 })
 
 test('жалоба не падает на циклических структурах или BigInt', () => {
