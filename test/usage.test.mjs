@@ -225,3 +225,39 @@ test('строковое дробное число безопасно округ
   assert.ok(Number.isInteger(fixed.inputTokens))
   assert.ok(Number.isInteger(fixed.outputTokens))
 })
+test('признаются вложенные структуры prompt_tokens_details.cachedTokens и cacheCreationTokens', () => {
+  const usage = {
+    prompt_tokens: 100,
+    completion_tokens: 20,
+    prompt_tokens_details: {
+      cachedTokens: 48,
+      cacheCreationTokens: 16,
+    },
+  }
+  const bad = damage(usage)
+  assert.deepEqual(bad, ['inputTokens', 'outputTokens'])
+  const fixed = repaired(usage, bad)
+  assert.equal(fixed.inputTokens, 100)
+  assert.equal(fixed.outputTokens, 20)
+  assert.equal(borrowed(usage, 'cacheReadTokens'), 48)
+  assert.equal(borrowed(usage, 'cacheWriteTokens'), 16)
+})
+
+test('coerceNumber и borrowed безопасно фильтруют Infinity, NaN и мусорные строки', () => {
+  assert.equal(borrowed({ inputTokens: Infinity }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ inputTokens: -Infinity }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ inputTokens: '1e5' }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ inputTokens: '   ' }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ inputTokens: '123abc' }, 'inputTokens'), undefined)
+  assert.equal(borrowed({ inputTokens: '0' }, 'inputTokens'), 0)
+  assert.equal(borrowed({ inputTokens: 0 }, 'inputTokens'), 0)
+})
+
+test('поврежденное или пустое событие в healed возвращается неизменным', () => {
+  assert.equal(healed(null, []), null)
+  assert.equal(healed(undefined, []), undefined)
+  const empty = {}
+  assert.equal(healed(empty, []), empty)
+  const dummy = { type: 'custom/event', data: {} }
+  assert.equal(healed(dummy, ['inputTokens']), dummy)
+})
