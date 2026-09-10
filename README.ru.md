@@ -112,7 +112,7 @@ graph LR
 
 ---
 
-## 🚀 Изменения в версии v0.1.6 (Changed in v0.1.6)
+## 🚀 Изменения в версии v0.1.7 (Changed in v0.1.7)
 
 * **Единый стиль по референсу `dsh-clinebot` (#6)**:
   - Идемпотентный вызов `ensureCss()` вынесен за пределы цикла рендера (`#dsh-usage-guard-full-css` с атрибутом `data-dsh-plugin="dsh-usage-guard"`).

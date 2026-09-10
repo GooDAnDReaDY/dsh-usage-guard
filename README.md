@@ -112,7 +112,7 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
 
 ---
 
-## 🚀 Changed in v0.1.6
+## 🚀 Changed in v0.1.7
 
 * **Design Alignment with `dsh-clinebot` (#6)**:
   - Idempotent `ensureCss()` outside component render with `<style id="dsh-usage-guard-full-css" data-dsh-plugin="dsh-usage-guard">`.
