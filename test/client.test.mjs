@@ -19,6 +19,9 @@ test('клиентский модуль регистрируется исклю�
     window: fakeWindow,
     setTimeout,
     clearTimeout,
+    setInterval,
+    clearInterval,
+    console,
   })
   vm.runInContext(code, context)
 
@@ -32,6 +35,7 @@ test('клиентский модуль регистрируется исклю�
         useRef: (init) => ({ current: init }),
         useEffect: () => {},
         createElement: () => ({}),
+        Component: class {},
       }
     }
     return {}
@@ -44,14 +48,21 @@ test('клиентский модуль регистрируется исклю�
   assert.ok(exports.inject.includes('settingsScope'), 'inject должен включать settingsScope')
 
   const registeredSlots = []
+  const registeredLocales = []
   const fakeCtx = {
-    locale: { register: () => {} },
+    locale: {
+      register: (ns, locale, dict) => {
+        registeredLocales.push({ ns, locale, dict })
+      },
+    },
     slots: {
       register: (desc, comp) => {
         registeredSlots.push({ desc, comp })
       },
     },
-    effect: () => {},
+    effect: (fn) => {
+      if (typeof fn === 'function') fn()
+    },
   }
 
   exports.apply(fakeCtx)
@@ -63,4 +74,118 @@ test('клиентский модуль регистрируется исклю�
   // Проверяем, что нет регистрации в settings.section
   const sectionSlots = registeredSlots.filter(s => s.desc.name === 'settings.section')
   assert.equal(sectionSlots.length, 0, 'не должно быть регистрации settings.section')
+
+  // Проверяем регистрацию словарей локализации
+  assert.ok(registeredLocales.some(l => l.ns === 'dsh-usage-guard' || l.locale === 'en' || l.locale === 'ru'))
+})
+
+test('makeT выполняет корректный fallback и подстановку переменных {var}', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  let loadedModule = null
+  const fakeWindow = { __ModuleLoader__: { load: (m) => { loadedModule = m } } }
+  vm.runInContext(code, vm.createContext({ window: fakeWindow, setTimeout, clearTimeout, setInterval, clearInterval }))
+
+  const exports = loadedModule.factory(() => ({}))
+  const { makeT } = exports
+  assert.equal(typeof makeT, 'function')
+
+  const ru = {
+    greeting: 'Привет, {name}!',
+    mode: 'Режим: {mode}',
+  }
+  const en = {
+    greeting: 'Hello, {name}!',
+    fallbackOnly: 'Only English',
+  }
+
+  const t = makeT(ru, en)
+  assert.equal(t('greeting', { name: 'DSH' }), 'Привет, DSH!')
+  assert.equal(t('mode', { mode: 'Safe' }), 'Режим: Safe')
+  assert.equal(t('fallbackOnly'), 'Only English')
+  assert.equal(t('unknown_key'), 'unknown_key')
+})
+
+test('ensureCss внедряет стиль с нужным id и data-dsh-plugin', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  let loadedModule = null
+  const fakeWindow = { __ModuleLoader__: { load: (m) => { loadedModule = m } } }
+  const appendedElements = []
+  const fakeDocument = {
+    getElementById: (id) => appendedElements.find(el => el.id === id) || null,
+    createElement: (tag) => ({
+      tagName: tag,
+      id: '',
+      dataset: {},
+      textContent: '',
+    }),
+    head: {
+      appendChild: (el) => appendedElements.push(el),
+    },
+  }
+
+  vm.runInContext(code, vm.createContext({
+    window: fakeWindow,
+    document: fakeDocument,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+  }))
+
+  const exports = loadedModule.factory(() => ({}))
+  const { ensureCss } = exports
+  assert.equal(typeof ensureCss, 'function')
+
+  ensureCss()
+  assert.equal(appendedElements.length, 1)
+  assert.equal(appendedElements[0].id, 'dsh-usage-guard-full-css')
+  assert.equal(appendedElements[0].dataset.dshPlugin, 'dsh-usage-guard')
+  assert.match(appendedElements[0].textContent, /\.ug-section-card/)
+
+  // Идемпотентность — повторный вызов не дублирует <style>
+  ensureCss()
+  assert.equal(appendedElements.length, 1)
+})
+
+test('createErrorBoundary перехватывает ошибки и возвращает компонент сброса', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  let loadedModule = null
+  const fakeWindow = { __ModuleLoader__: { load: (m) => { loadedModule = m } } }
+  vm.runInContext(code, vm.createContext({ window: fakeWindow, setTimeout, clearTimeout, setInterval, clearInterval }))
+
+  class FakeReactComponent {
+    constructor(props) {
+      this.props = props
+      this.state = {}
+    }
+    setState(updater) {
+      this.state = typeof updater === 'function' ? updater(this.state) : { ...this.state, ...updater }
+    }
+  }
+
+  const exports = loadedModule.factory((pkg) => {
+    if (pkg === 'react') {
+      return {
+        Component: FakeReactComponent,
+        createElement: (type, props, ...children) => ({ type, props, children }),
+      }
+    }
+    return {}
+  })
+
+  const { createErrorBoundary } = exports
+  const ErrorBoundary = createErrorBoundary()
+  assert.ok(ErrorBoundary)
+
+  const derived = ErrorBoundary.getDerivedStateFromError(new Error('Boom'))
+  assert.equal(derived.hasError, true)
+  assert.equal(derived.error.message, 'Boom')
+
+  const instance = new ErrorBoundary({ children: 'OK' })
+  assert.equal(instance.render(), 'OK')
+
+  instance.state = { hasError: true, error: new Error('Render crash') }
+  const rendered = instance.render()
+  assert.equal(rendered.type, 'div')
+  assert.equal(rendered.props.className, 'ug-alert-bad')
 })
