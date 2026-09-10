@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 
-test('клиентский модуль регистрируется в ModuleLoader с правильным ID и слотом', () => {
+test('клиентский модуль регистрируется исключительно в слоте settings.plugin.item', () => {
   const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
   let loadedModule = null
@@ -25,7 +25,6 @@ test('клиентский модуль регистрируется в ModuleLo
   assert.ok(loadedModule, 'window.__ModuleLoader__.load должен быть вызван')
   assert.equal(loadedModule.id, '@goodandready/dsh-usage-guard')
 
-  // Вызов фабрики
   const exports = loadedModule.factory((pkg) => {
     if (pkg === 'react') {
       return {
@@ -44,20 +43,24 @@ test('клиентский модуль регистрируется в ModuleLo
   assert.ok(exports.inject.includes('locale'), 'inject должен включать locale')
   assert.ok(exports.inject.includes('settingsScope'), 'inject должен включать settingsScope')
 
-  let registeredSlot = null
+  const registeredSlots = []
   const fakeCtx = {
     locale: { register: () => {} },
     slots: {
-      inject: (name, cb) => cb(),
       register: (desc, comp) => {
-        registeredSlot = { desc, comp }
+        registeredSlots.push({ desc, comp })
       },
     },
     effect: () => {},
   }
 
   exports.apply(fakeCtx)
-  assert.ok(registeredSlot, 'слот должен быть зарегистрирован')
-  assert.equal(registeredSlot.desc.name, 'settings.plugin.item')
-  assert.equal(registeredSlot.desc.key, 'dsh-usage-guard')
+  assert.equal(registeredSlots.length, 1, 'должен быть зарегистрирован ровно один слот')
+  assert.equal(registeredSlots[0].desc.name, 'settings.plugin.item')
+  assert.equal(registeredSlots[0].desc.key, 'dsh-usage-guard')
+  assert.equal(registeredSlots[0].desc.locale, 'dsh-usage-guard')
+
+  // Проверяем, что нет регистрации в settings.section
+  const sectionSlots = registeredSlots.filter(s => s.desc.name === 'settings.section')
+  assert.equal(sectionSlots.length, 0, 'не должно быть регистрации settings.section')
 })
