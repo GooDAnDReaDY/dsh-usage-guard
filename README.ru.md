@@ -112,6 +112,20 @@ graph LR
 
 ---
 
+## 🚀 Изменения в версии v0.1.6 (Changed in v0.1.6)
+
+* **Единый стиль по референсу `dsh-clinebot` (#6)**:
+  - Идемпотентный вызов `ensureCss()` вынесен за пределы цикла рендера (`#dsh-usage-guard-full-css` с атрибутом `data-dsh-plugin="dsh-usage-guard"`).
+  - Карточка настроек защищена компонентом `ErrorBoundary`: ошибки интерфейса не роняют панель настроек DSH и сопровождаются кнопкой «Retry».
+  - Полное использование токенов темы DSH для карточек, полей и бейджей (`.ug-section-card`, `.ug-field-card`, `.ug-stat-box`, `.ug-badge-ok`, `.ug-badge-warn`, `.ug-btn-primary`).
+  - Добавлен блок телеметрии статуса защиты и целевой службы `sessionProjections`.
+  - Внедрена функция локализации `makeT(ru, en)` с поддержкой интерполяции переменных `{var}` и fallback.
+  - Фоновая синхронизация зеркала настроек `refreshMirrorUntilVisible(ctx)` с безопасным unref-таймером.
+* **Аудит стабильности и расширение синонимов расхода**:
+  - Добавлена поддержка вложенных структур кэша OpenAI (`prompt_tokens_details.cachedTokens`, `prompt_tokens_details.cacheCreationTokens`).
+  - Усилена функция приведения чисел (`coerceNumber`) против `Infinity`, `-Infinity`, `NaN` и мусорных строк.
+  - Безопасная обработка настроек ядра и перехват исключений хоста.
+
 ## 🚀 Изменения в версии v0.1.5 (Changed in v0.1.5)
 
 * **Строгая регистрация в `settings.plugin.item` (#3)**:

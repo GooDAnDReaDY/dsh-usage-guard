@@ -112,6 +112,20 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
 
 ---
 
+## 🚀 Changed in v0.1.6
+
+* **Design Alignment with `dsh-clinebot` (#6)**:
+  - Idempotent `ensureCss()` outside component render with `<style id="dsh-usage-guard-full-css" data-dsh-plugin="dsh-usage-guard">`.
+  - Wrapped settings card in an `ErrorBoundary` to gracefully contain render errors and offer a "Retry" mechanism without breaking DSH Settings.
+  - Native DSH theme tokens for card styling (`.ug-section-card`, `.ug-field-card`, `.ug-stat-box`, `.ug-badge-ok`, `.ug-badge-warn`, `.ug-btn-primary`).
+  - Added protection status telemetry grid displaying current operational mode and target Cordis service.
+  - Built-in `makeT(dict, fallback)` supporting Russian and English locales with template interpolation.
+  - Added `refreshMirrorUntilVisible(ctx)` with an unref timer to guarantee host settings scope visibility.
+* **Parser Stability & Cache Aliases Hardening**:
+  - Added recognition of nested OpenAI cache details (`prompt_tokens_details.cachedTokens`, `prompt_tokens_details.cacheCreationTokens`).
+  - Hardened number coercion and sanitization against `Infinity`, `-Infinity`, `NaN`, and malformed strings.
+  - Defensive error handling when accessing live settings scopes.
+
 ## 🚀 Changed in v0.1.5
 
 * **Strict `settings.plugin.item` Registration (#3)**:
