@@ -112,6 +112,24 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
 
 ---
 
+## 🚀 Changed in v0.1.5
+
+* **Strict `settings.plugin.item` Registration (#3)**:
+  Completely removed the deprecated fallback registration into `settings.section`. In compliance with DSH Plugin Authoring guidelines, settings are rendered exclusively in the "Settings → Plugins" tab (`settings.plugin.item`) with key `dsh-usage-guard` without cluttering the global sidebar.
+* **Refined Client Architecture**:
+  Cleaned up the browser bundle to register strictly one slot entry with zero runtime fallback delays.
+
+## 🚀 Changed in v0.1.4
+
+* **Style Isolation with `data-dsh-plugin`**:
+  Dynamic `<style>` element is explicitly tagged with `data-dsh-plugin="dsh-usage-guard"`, preventing style purging during neighbor plugin reloads or HMR.
+* **Direct Slot Registration**:
+  Replaced broken invocation pattern with standard `ctx.slots.register('settings.plugin.item', ...)`.
+* **Canonical Localization Standard**:
+  Streamlined client registration to strictly register the canonical English locale dictionary, delegating localized user interfaces to DSH translation plugins.
+* **Safe Configuration Loading & English Diagnostics**:
+  Protected `Config()` initialization with `try...catch` and migrated diagnostic log messages to English.
+
 ## 🚀 Changed in v0.1.3
 
 * **Fractional Token Protection (Floats & Decimals)**:

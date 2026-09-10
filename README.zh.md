@@ -85,6 +85,24 @@ graph LR
 
 ---
 
+## 🚀 v0.1.5 版本更新说明 (Changed in v0.1.5)
+
+* **规范设置卡片插槽注册 (#3)**:
+  彻底移除废弃的顶层侧边栏 `settings.section` 回退逻辑。严格遵循 DSH Plugin Authoring 规范，卡片仅注册至“设置 → 插件”标签页（`settings.plugin.item`），键名与命名空间一致为 `dsh-usage-guard`，不再占用全局侧边栏资源。
+* **精简前端注册流**:
+  客户端模块仅保留标准单一插槽注册，无任何额外回退延时。
+
+## 🚀 v0.1.4 版本更新说明 (Changed in v0.1.4)
+
+* **样式隔离标记 `data-dsh-plugin`**:
+  动态 `<style>` 标签附加 `data-dsh-plugin="dsh-usage-guard"` 属性，避免被相邻插件的热重载清理机制误删。
+* **修复插槽直接注册**:
+  替换无效的 `ctx.slots.inject()` 调用为直接标准 `ctx.slots.register('settings.plugin.item', ...)`。
+* **规范化单一英文字典**:
+  客户端仅保留基础英语字典，翻译工作完全交由 DSH 核心翻译插件运行时接管。
+* **安全配置初始化与全英文诊断**:
+  `Config()` 初始化增加 `try...catch` 防护，控制台输出全面切换为标准英语日志。
+
 ## 🚀 v0.1.3 版本更新说明 (Changed in v0.1.3)
 
 * **浮点与小数 Token 防崩保护 (Floats & Decimals)**：
