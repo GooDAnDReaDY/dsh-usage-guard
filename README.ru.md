@@ -122,6 +122,13 @@ graph LR
 
 ---
 
+## 🚀 Изменения в версии v0.1.9 (Changed in v0.1.9)
+
+* **Исправление валидации схемы Cordis Schemastery (`z.natural()`)**:
+  - Заменена несовместимая цепочка Zod `z.number().int().nonnegative()` в схеме `Config` на нативный метод Cordis Schemastery `z.natural()`.
+  - Устранена критическая ошибка `TypeError: z.number(...).int is not a function`, вызывавшая аварийную остановку лоадера Cordis при запуске `dsh-web.service`.
+  - Добавлен регрессионный юнит-тест `test/config.test.mjs`.
+
 ## 🚀 Изменения в версии v0.1.8 (Changed in v0.1.8)
 
 * **Канонизация локалей (en/zh) и делегирование русского перевода**:

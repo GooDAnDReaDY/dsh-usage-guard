@@ -131,6 +131,13 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
 
 ---
 
+## 🚀 Changed in v0.1.9
+
+* **Fix Schemastery Config Validation (`z.natural()`)**:
+  - Replaced incompatible Zod chaining `z.number().int().nonnegative()` in `Config` with Cordis Schemastery's native `z.natural()`.
+  - Fixes `TypeError: z.number(...).int is not a function` preventing Cordis loader crash upon importing `dsh-usage-guard`.
+  - Added regression unit test `test/config.test.mjs`.
+
 ## 🚀 Changed in v0.1.8
 
 * **Canonical Localization Standard (en/zh)**:
