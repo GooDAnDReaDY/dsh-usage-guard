@@ -131,6 +131,22 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
 
 ---
 
+## 🚀 Changed in v0.1.8
+
+* **Canonical Localization Standard (en/zh)**:
+  - Client bundle `lib/client.js` now strictly provides canonical `en` (English fallback) and `zh` (Simplified Chinese) dictionaries.
+  - Russian localization is fully decoupled from the core bundle and maintained through `@goodandready/dsh-russian-lang` (Issue #196).
+  - Enforced zero hardcoded Cyrillic strings in client frontend bundle via automated tests.
+* **Live In-Memory Telemetry & Endpoint (`/api/dsh-usage-guard/telemetry`)**:
+  - Real-time tracking of `rescuedEvents`, `fixedTokens`, `clampedSpikes`, and a FIFO circular buffer of recent incidents.
+  - Integrated `TelemetrySection` in the Settings Card displaying 3 metric cards and latest incident context.
+* **Host-Side One-Click Plugin Updater (`/api/dsh-usage-guard/update`)**:
+  - Built-in updater supporting status checks and in-place updates via DSH CLI.
+  - Multi-layer security via `isTrustedUpdateRequest`: loopback IP check, `sec-fetch-site: same-origin`, matching `host`/`origin`, and `x-dsh-plugin-update: 1` header.
+* **Token Spike Clamping (`maxStepTokens`)**:
+  - Added configurable ceiling in `Config` and UI to clamp abnormally large step metrics (> 1,000,000) before projection calculation.
+  - Distinct diagnostic logging and telemetry tracking for clamped token spikes.
+
 ## 🚀 Changed in v0.1.7
 
 * **Design Alignment with `dsh-clinebot` (#6)**:
