@@ -118,7 +118,16 @@ If a counter cannot be resolved from aliases, it is safely initialized to `0`. F
 Logs informative diagnostic warnings naming the exact session, turn, step, raw payload, and recovery action (e.g. `inputTokens borrowed from alias` vs `inputTokens zeroed`). Incidents are deduplicated in memory so logs are not flooded during replays, and the cache is bounded to 1,000 entries with O(1) FIFO eviction.
 
 ### 7. Native Web UI Settings Card (`lib/client.js`)
-* Mounts into the native Settings tab under `Settings → Plugins → Plugin Settings` (`settings.plugin.item`) with real-time status badge, auto-dismissing save feedback, and full localization.
+* Mounts into the native Settings tab under `Settings → Plugins → Plugin Settings` (`settings.plugin.item`) with real-time status badge, auto-dismissing save feedback, and full English / Chinese localization.
+
+### 8. Token Spike Clamping (`maxStepTokens`)
+* Restricts abnormally huge step usage counters (e.g. > 1,000,000) before projection calculation to prevent integer overflow and corrupted session summaries. Can be configured in settings or set to `0` to disable.
+
+### 9. Live In-Memory Telemetry & Diagnostic Endpoint (`/api/dsh-usage-guard/telemetry`)
+* Tracks rescued malformed samples, total fixed tokens, clamped spikes, and maintains a FIFO circular buffer of recent incidents with exact timestamps and coordinates. Rendered live in the settings UI.
+
+### 10. Host-Side One-Click Updater (`/api/dsh-usage-guard/update`)
+* Implements the canonical DSH plugin-updater specification with loopback verification, `same-origin` checks, and `x-dsh-plugin-update: 1` security token. Allows updating the plugin directly from the settings interface.
 
 ---
 
@@ -222,12 +231,14 @@ dsh plugin --profile web add @goodandready/dsh-usage-guard
 dsh-usage-guard:
   repair: true
   report: true
+  maxStepTokens: 1000000
 ```
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `repair` | `boolean` | `true` | Replace missing or non-numeric token counters with zero before arithmetic accumulation |
 | `report` | `boolean` | `true` | Log diagnostic warning lines naming turn, step, and raw sample when damaged metrics arrive |
+| `maxStepTokens` | `number` | `0` | Clamp abnormally large step usage values (e.g. > 1,000,000) to prevent integer overflows. Set 0 to disable |
 
 ---
 

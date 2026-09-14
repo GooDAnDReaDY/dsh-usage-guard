@@ -261,3 +261,38 @@ test('поврежденное или пустое событие в healed во
   const dummy = { type: 'custom/event', data: {} }
   assert.equal(healed(dummy, ['inputTokens']), dummy)
 })
+
+test('damage и repaired ограничивают аномальные спайки токенов при maxStepTokens', () => {
+  const usage = {
+    inputTokens: 2500000,
+    outputTokens: 50,
+  }
+  const bad = damage(usage, 1000000)
+  assert.ok(bad.clamped)
+  assert.equal(bad.clamped.inputTokens.from, 2500000)
+  assert.equal(bad.clamped.inputTokens.to, 1000000)
+
+  const fixed = repaired(usage, bad, 1000000)
+  assert.equal(fixed.inputTokens, 1000000)
+  assert.equal(fixed.outputTokens, 50)
+})
+
+test('при maxStepTokens = 0 ограничение спайков отключено', () => {
+  const usage = {
+    inputTokens: 5000000,
+    outputTokens: 100,
+  }
+  const bad = damage(usage, 0)
+  assert.equal(bad.length, 0)
+  assert.equal(bad.clamped, undefined)
+  const fixed = repaired(usage, bad, 0)
+  assert.equal(fixed.inputTokens, 5000000)
+})
+
+test('complaint формирует сообщение об обрезке спайка токенов', () => {
+  const usage = { inputTokens: 3000000 }
+  const bad = damage(usage, 1000000)
+  const msg = complaint({ turn: 4, step: 2, usage }, bad)
+  assert.match(msg, /clamped abnormally large/)
+  assert.match(msg, /3000000 -> 1000000/)
+})

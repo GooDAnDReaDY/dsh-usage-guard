@@ -34,6 +34,7 @@ test('клиентский модуль регистрируется исклю�
         useState: (init) => [init, () => {}],
         useRef: (init) => ({ current: init }),
         useEffect: () => {},
+        useCallback: (fn) => fn,
         createElement: () => ({}),
         Component: class {},
       }
@@ -51,6 +52,8 @@ test('клиентский модуль регистрируется исклю�
   const registeredLocales = []
   const fakeCtx = {
     locale: {
+      current: 'zh-CN',
+      get: () => 'zh-CN',
       register: (ns, locale, dict) => {
         registeredLocales.push({ ns, locale, dict })
       },
@@ -75,8 +78,35 @@ test('клиентский модуль регистрируется исклю�
   const sectionSlots = registeredSlots.filter(s => s.desc.name === 'settings.section')
   assert.equal(sectionSlots.length, 0, 'не должно быть регистрации settings.section')
 
-  // Проверяем регистрацию словарей локализации
-  assert.ok(registeredLocales.some(l => l.ns === 'dsh-usage-guard' || l.locale === 'en' || l.locale === 'ru'))
+  // Проверяем регистрацию канонических словарей локализации: en и zh
+  assert.ok(registeredLocales.some(l => l.locale === 'en'), 'en словарь должен быть зарегистрирован')
+  assert.ok(registeredLocales.some(l => l.locale === 'zh'), 'zh словарь должен быть зарегистрирован')
+  assert.ok(!registeredLocales.some(l => l.locale === 'ru'), 'ru словарь не должен быть вшит в бандл (русификация строго через dsh-russian-lang)')
+})
+
+test('в client.js отсутствуют захардкоженные кириллические строки локализации', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // Никаких кириллических символов во фронтенд-бандле
+  const cyrillicMatch = /[\u0400-\u04FF]/.exec(code)
+  assert.equal(cyrillicMatch, null, 'client.js не должен содержать кириллических символов; русификация делегируется dsh-russian-lang')
+})
+
+test('getActiveLocale корректно определяет китайский и fallback на английский', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  let loadedModule = null
+  const fakeWindow = { __ModuleLoader__: { load: (m) => { loadedModule = m } } }
+  vm.runInContext(code, vm.createContext({ window: fakeWindow, setTimeout, clearTimeout, setInterval, clearInterval }))
+
+  const exports = loadedModule.factory(() => ({}))
+  const { getActiveLocale } = exports
+  assert.equal(typeof getActiveLocale, 'function')
+
+  assert.equal(getActiveLocale({ locale: { get: () => 'zh-CN' } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { current: 'zh-TW' } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { current: 'zh' } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { current: 'en-US' } }), 'en')
+  assert.equal(getActiveLocale({ locale: { current: 'ru-RU' } }), 'en') // ru falls back to en in client bundle
+  assert.equal(getActiveLocale(null), 'en')
 })
 
 test('makeT выполняет корректный fallback и подстановку переменных {var}', () => {
@@ -89,18 +119,18 @@ test('makeT выполняет корректный fallback и подстано
   const { makeT } = exports
   assert.equal(typeof makeT, 'function')
 
-  const ru = {
-    greeting: 'Привет, {name}!',
-    mode: 'Режим: {mode}',
+  const zh = {
+    greeting: '你好, {name}!',
+    mode: '模式: {mode}',
   }
   const en = {
     greeting: 'Hello, {name}!',
     fallbackOnly: 'Only English',
   }
 
-  const t = makeT(ru, en)
-  assert.equal(t('greeting', { name: 'DSH' }), 'Привет, DSH!')
-  assert.equal(t('mode', { mode: 'Safe' }), 'Режим: Safe')
+  const t = makeT(zh, en)
+  assert.equal(t('greeting', { name: 'DSH' }), '你好, DSH!')
+  assert.equal(t('mode', { mode: 'Safe' }), '模式: Safe')
   assert.equal(t('fallbackOnly'), 'Only English')
   assert.equal(t('unknown_key'), 'unknown_key')
 })
