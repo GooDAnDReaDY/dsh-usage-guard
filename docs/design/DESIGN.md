@@ -11,7 +11,7 @@
   - Слот: строго `settings.plugin.item` (вкладка «Настройки → Плагины → Настройки плагинов»).
   - Ключ слота (`entryKey`): `dsh-usage-guard` (полностью совпадает с namespace настроек).
   - Свой раздел бокового меню (`settings.section`): **отсутствует / deprecated** (запрещено стандартом DSH для карточек настроек).
-- API: Cordis-плагин, патчит `sessionProjections`.
+- API: Cordis-плагин, патчит `sessionProjections`. Включает HTTP-маршруты `/api/dsh-usage-guard/telemetry` и `/api/dsh-usage-guard/update`.
 - CLI: Отсутствует (управление через DSH CLI: `dsh plugin --profile web ...`).
 - Документация: `README.md`, `README.ru.md`, `README.zh.md`, `docs/design/DESIGN.md`.
 
@@ -50,8 +50,16 @@
           │   ├── .ug-stats-grid (индикация статуса защиты и целевой службы sessionProjections)
           │   ├── .ug-field-card (опция repair: label + input#ug-repair-toggle + description)
           │   ├── .ug-field-card (опция report: label + input#ug-report-toggle + description)
+          │   ├── .ug-field-card (опция maxStepTokens: label + input#ug-tokens-input + description)
           │   ├── .ug-alert-ok / .ug-alert-bad (обратная связь сохранения)
-          │   └── button.ug-btn.ug-btn-primary (сохранить изменения)
+          │   ├── button.ug-btn.ug-btn-primary (сохранить изменения)
+          │   ├── TelemetrySection:
+          │   │   ├── 3-grid: rescuedEvents, fixedTokens, clampedSpikes
+          │   │   └── Last Incident box (timestamp, turn, step, target) / Healthy badge
+          │   └── UpdaterSection:
+          │       ├── Current & Latest version indicators
+          │       ├── 'Check for Updates' action
+          │       └── One-click 'Update to {version}' button (POST с x-dsh-plugin-update: 1)
   ```
 - Loading / empty / error / success:
   - `loading`: понятный индикатор загрузки настроек.
@@ -74,13 +82,19 @@
   - Применять переменные темы `--dsw-alias-*`.
   - Использовать `ensureCss()` вне цикла рендера.
   - Оборачивать UI в `ErrorBoundary`.
-  - Использовать функцию интерполяции `makeT(ru, en)`.
+  - Использовать канонические словари en и zh; исключить захардкоженные словари ru (делегировано в dsh-russian-lang).
+  - Использовать функцию интерполяции `makeT(dict, fallback)` с определением активного языка через getActiveLocale.
 - Don't:
   - Занимать боковое меню верхнего уровня (`settings.section`).
   - Использовать хардкод цветов (#fff, #2da44e и т.д.).
   - Допускать утечки интервалов таймеров в фоновых процессах.
 
 ## Locked Design Decisions
+- **2026-09-14 (#9):**
+  - **Канонизация локалей:** Полный отказ от зашитых русских словарей в `client.js`. Бандл включает только канонический `en` (fallback) и `zh` (Simplified Chinese). Вся русификация интерфейса делегирована отдельному плагину локализации `@goodandready/dsh-russian-lang` через issue #196.
+  - **Живая телеметрия:** На сервере поднят кольцевой буфер и счетчики (`rescuedEvents`, `fixedTokens`, `clampedSpikes`, `recentIncidents`). Эндпоинт `GET /api/dsh-usage-guard/telemetry` обслуживает UI плагина. В карточке настроек отображается отдельный блок TelemetrySection с кнопкой ручного обновления.
+  - **Host-Side One-Click Updater:** Реализован защищенный маршрут `/api/dsh-usage-guard/update` (`GET` проверка, `POST` запуск установки через DSH CLI / pnpm с проверкой Same-Origin, Loopback и заголовка `x-dsh-plugin-update: 1`). В карточке настроек отображается секция с текущей/последней версией и кнопкой установки.
+  - **Срезание спайков `maxStepTokens`:** Опция числового ввода для предотвращения переполнений от аномальных ответов провайдеров.
 - **2026-09-10 (#6):** Оформление карточки приведено к единому стилю `dsh-clinebot` (`.ug-section-card`, `.ug-field-card`, `.ug-badge-ok`/`warn`, `.ug-btn`, `ErrorBoundary`, `ensureCss`, `makeT`, `refreshMirrorUntilVisible`).
 - **2026-09-10 (#3):** Полный отказ от fallback-слота `settings.section`. Плагин регистрируется строго в `settings.plugin.item`.
 - **2026-09-09 (v0.1.4):** Добавлен атрибут `data-dsh-plugin="dsh-usage-guard"` для защиты `<style>` при HMR/перезагрузке соседних плагинов.
