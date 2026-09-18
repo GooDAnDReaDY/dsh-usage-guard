@@ -101,12 +101,13 @@ test('getActiveLocale корректно определяет китайский
   const { getActiveLocale } = exports
   assert.equal(typeof getActiveLocale, 'function')
 
-  assert.equal(getActiveLocale({ locale: { get: () => 'zh-CN' } }), 'zh')
-  assert.equal(getActiveLocale({ locale: { current: 'zh-TW' } }), 'zh')
-  assert.equal(getActiveLocale({ locale: { current: 'zh' } }), 'zh')
-  assert.equal(getActiveLocale({ locale: { current: 'en-US' } }), 'en')
-  assert.equal(getActiveLocale({ locale: { current: 'ru-RU' } }), 'en') // ru falls back to en in client bundle
+  assert.equal(getActiveLocale({ locale: { getLocale: () => ({ active: 'zh-CN' }) } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { getSnapshot: () => ({ active: 'zh-TW' }) } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { getLocale: () => ({ locale: 'zh' }) } }), 'zh')
+  assert.equal(getActiveLocale({ locale: { getLocale: () => ({ active: 'en-US' }) } }), 'en')
+  assert.equal(getActiveLocale({ locale: { getLocale: () => ({ active: 'ru-RU' }) } }), 'en') // ru falls back to en in client bundle
   assert.equal(getActiveLocale(null), 'en')
+  assert.equal(getActiveLocale({}), 'en')
 })
 
 test('makeT выполняет корректный fallback и подстановку переменных {var}', () => {
