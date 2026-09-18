@@ -6,3 +6,4 @@ node_modules/
 credentials.yaml
 .worktrees/
 *.tgz
+docs/plans/
