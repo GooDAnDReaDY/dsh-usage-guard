@@ -39,3 +39,9 @@ test('Package identity matches across all 4 canonical places (#13)', () => {
   const indexName = indexMatch[1]
   assert.equal(indexName, expectedName, 'lib/index.js export const name must match package.json')
 })
+
+test('No build tarballs (*.tgz) remain in repository tree (#19)', () => {
+  const files = fs.readdirSync(rootDir)
+  const tarballs = files.filter(f => f.endsWith('.tgz'))
+  assert.deepEqual(tarballs, [], 'Source tree must not contain .tgz archive files (#19)')
+})
