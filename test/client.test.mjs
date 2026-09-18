@@ -69,10 +69,18 @@ test('клиентский модуль регистрируется исклю�
   }
 
   exports.apply(fakeCtx)
-  assert.equal(registeredSlots.length, 1, 'должен быть зарегистрирован ровно один слот')
-  assert.equal(registeredSlots[0].desc.name, 'settings.plugin.item')
-  assert.equal(registeredSlots[0].desc.key, 'dsh-usage-guard')
+  // Two seats by design: the Plugins page row seat the current core renders, and the
+  // legacy settings.plugin.item card kept as a fallback for older cores.
+  assert.equal(registeredSlots.length, 2, 'должны быть зарегистрированы две посадки: строка и легаси')
+  assert.deepEqual(
+    registeredSlots.map(s => s.desc.name),
+    ['plugins.row.config', 'settings.plugin.item'],
+    'посадка строки идёт первой'
+  )
+  assert.equal(registeredSlots[0].desc.key, '@goodandready/dsh-usage-guard#dsh-usage-guard')
   assert.equal(registeredSlots[0].desc.locale, 'dsh-usage-guard')
+  assert.equal(registeredSlots[1].desc.key, 'dsh-usage-guard')
+  assert.equal(registeredSlots[1].desc.locale, 'dsh-usage-guard')
 
   // Проверяем, что нет регистрации в settings.section
   const sectionSlots = registeredSlots.filter(s => s.desc.name === 'settings.section')
