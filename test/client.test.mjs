@@ -220,3 +220,11 @@ test('createErrorBoundary перехватывает ошибки и возвр�
   assert.equal(rendered.type, 'div')
   assert.equal(rendered.props.className, 'ug-alert-bad')
 })
+
+test('в client.js отсутствуют самостоятельные rgba и hex цвета (#18)', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const rgbaMatch = /rgba\([^)]+\)/i.exec(code)
+  assert.equal(rgbaMatch, null, 'client.js не должен содержать standalone rgba(...) цветов (#18)')
+  const hexMatch = /#[0-9a-fA-F]{3,8}/.exec(code)
+  assert.equal(hexMatch, null, 'client.js не должен содержать standalone hex цветов (#18)')
+})
