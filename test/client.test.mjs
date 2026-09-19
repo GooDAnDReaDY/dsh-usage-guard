@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 
-test('клиентский модуль регистрируется исключительно в слоте settings.plugin.item', () => {
+test('клиентский модуль регистрируется в посадках настроек, включая plugins.item', () => {
   const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
   let loadedModule = null
@@ -69,18 +69,21 @@ test('клиентский модуль регистрируется исклю�
   }
 
   exports.apply(fakeCtx)
-  // Two seats by design: the Plugins page row seat the current core renders, and the
-  // legacy settings.plugin.item card kept as a fallback for older cores.
-  assert.equal(registeredSlots.length, 2, 'должны быть зарегистрированы две посадки: строка и легаси')
+  // Three seats by design: the plugin-list seat the current core renders as the
+  // plugin's own page (plugins.item), the row seat and the legacy settings.plugin.item
+  // card kept as fallbacks for older cores.
+  assert.equal(registeredSlots.length, 3, 'должны быть зарегистрированы три посадки: список, строка и легаси')
   assert.deepEqual(
     registeredSlots.map(s => s.desc.name),
-    ['plugins.row.config', 'settings.plugin.item'],
-    'посадка строки идёт первой'
+    ['plugins.item', 'plugins.row.config', 'settings.plugin.item'],
+    'посадка списка идёт первой'
   )
-  assert.equal(registeredSlots[0].desc.key, '@goodandready/dsh-usage-guard#dsh-usage-guard')
-  assert.equal(registeredSlots[0].desc.locale, 'dsh-usage-guard')
-  assert.equal(registeredSlots[1].desc.key, 'dsh-usage-guard')
+  assert.equal(registeredSlots[0].desc.id, 'dsh-usage-guard')
+  assert.equal(registeredSlots[0].desc.label(), 'Usage Guard', 'label — статичная строка')
+  assert.equal(registeredSlots[1].desc.key, '@goodandready/dsh-usage-guard#dsh-usage-guard')
   assert.equal(registeredSlots[1].desc.locale, 'dsh-usage-guard')
+  assert.equal(registeredSlots[2].desc.key, 'dsh-usage-guard')
+  assert.equal(registeredSlots[2].desc.locale, 'dsh-usage-guard')
 
   // Проверяем, что нет регистрации в settings.section
   const sectionSlots = registeredSlots.filter(s => s.desc.name === 'settings.section')
