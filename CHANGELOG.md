@@ -2,6 +2,11 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.14
+
+### Fixed
+- Settings no longer wait on the removed settingsScope service. The client uses configForms (#42).
+
 ## 0.1.13
 
 ### Fixed
