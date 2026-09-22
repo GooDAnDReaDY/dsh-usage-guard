@@ -46,7 +46,7 @@ test('клиентский модуль регистрируется в поса
   assert.ok(Array.isArray(exports.inject), 'клиентский модуль должен декларировать inject')
   assert.ok(exports.inject.includes('slots'), 'inject должен включать slots')
   assert.ok(exports.inject.includes('locale'), 'inject должен включать locale')
-  assert.ok(exports.inject.includes('settingsScope'), 'inject должен включать settingsScope')
+  assert.ok(exports.inject.includes('configForms'), 'inject должен включать configForms')
 
   const registeredSlots = []
   const registeredLocales = []
