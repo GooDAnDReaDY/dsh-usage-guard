@@ -2,6 +2,15 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.15
+
+### Fixed
+- Resolved symlinks in `findDshCliEntry` via `realpathSync` so symlinked global `dsh` CLI binaries reliably locate `@deepseek-ai/dsh/lib/bin.js` for automatic updates (#37).
+- Unified `/api/dsh-usage-guard/telemetry` route registration via `registerTelemetryRoute` and eliminated duplicate inline handler (#38).
+- Avoided V8 array deoptimization in `damage()` by preserving `bad` as a pure packed array, storing clamping metadata in a module WeakMap (#39).
+- Prioritized canonical property check in `borrowed()` before iterating alias synonyms (#40).
+- Updated design contract documentation for `plugins.item` primary slot, fallbacks, and theme CSS variables (#41).
+
 ## 0.1.14
 
 ### Fixed
