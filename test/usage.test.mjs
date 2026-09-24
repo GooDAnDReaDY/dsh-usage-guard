@@ -296,3 +296,11 @@ test('complaint формирует сообщение об обрезке спа
   assert.match(msg, /clamped abnormally large/)
   assert.match(msg, /3000000 -> 1000000/)
 })
+
+test('borrowed() отдает приоритет каноническому полю перед синонимами (#40)', () => {
+  const usage = {
+    inputTokens: '1500',
+    input_tokens: 200,
+  }
+  assert.equal(borrowed(usage, 'inputTokens'), 1500, 'каноническое поле должно быть нормализовано до поиска в синонимах')
+})
