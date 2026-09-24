@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { FIELDS, borrowed, complaint, damage, healed, repaired, usageOf } from '../lib/usage.js'
+import { FIELDS, borrowed, complaint, damage, healed, repaired, usageOf, clampedDetails } from '../lib/usage.js'
 
 const chunk = (usage) => ({
   type: 'assistant/chunk',
@@ -268,9 +268,9 @@ test('damage и repaired ограничивают аномальные спай�
     outputTokens: 50,
   }
   const bad = damage(usage, 1000000)
-  assert.ok(bad.clamped)
-  assert.equal(bad.clamped.inputTokens.from, 2500000)
-  assert.equal(bad.clamped.inputTokens.to, 1000000)
+  assert.equal(bad.clamped, undefined); assert.deepEqual(bad, ['inputTokens']); const clamped = clampedDetails(usage, 1000000); assert.ok(clamped)
+  assert.equal(clamped.inputTokens.from, 2500000)
+  assert.equal(clamped.inputTokens.to, 1000000)
 
   const fixed = repaired(usage, bad, 1000000)
   assert.equal(fixed.inputTokens, 1000000)
