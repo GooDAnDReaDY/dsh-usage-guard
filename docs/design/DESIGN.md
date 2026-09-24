@@ -8,8 +8,9 @@
 ## User Surfaces
 - Web/UI: Интегрированная карточка настроек плагина.
 - DSH UI / settings / slots:
-  - Слот: строго `settings.plugin.item` (вкладка «Настройки → Плагины → Настройки плагинов»).
-  - Ключ слота (`entryKey`): `dsh-usage-guard` (полностью совпадает с namespace настроек).
+  - Основной слот плагина: `plugins.item` (`id: '@goodandready/dsh-usage-guard'`, `order: 60`, `label: () => 'Usage Guard'`). В актуальном ядре DSH (0.1.6-alpha.2+) рендерит собственную страницу плагина в списке плагинов с формой настроек (`view: 'page'`).
+  - Строчный слот (fallback/row seat): `plugins.row.config` (`key: '@goodandready/dsh-usage-guard:config'`). Рендерит компактный inline summary в строке плагина.
+  - Устаревший слот (legacy fallback): `settings.plugin.item` (`key: 'dsh-usage-guard'`). Аккордеонная карточка (`view: 'card'`) в разделе настроек плагинов для старых версий хоста.
   - Свой раздел бокового меню (`settings.section`): **отсутствует / deprecated** (запрещено стандартом DSH для карточек настроек).
 - API: Cordis-плагин, патчит `sessionProjections`. Включает HTTP-маршруты `/api/dsh-usage-guard/telemetry` и `/api/dsh-usage-guard/update`.
 - CLI: Отсутствует (управление через DSH CLI: `dsh plugin --profile web ...`).
@@ -25,7 +26,7 @@
   - Фоновые слои: `var(--dsw-alias-bg-layer-3)` (карточка), `var(--dsw-alias-bg-layer-2)` (вложенные карточки опций и телеметрии), `var(--dsw-alias-bg-layer-4)` (ховер кнопок).
   - Границы: `var(--dsw-alias-border-l2)`.
   - Текст: `var(--dsw-alias-label-primary)`, `var(--dsw-alias-label-secondary)`, `var(--dsw-alias-label-tertiary)`.
-  - Акценты / бейджи: `var(--dsw-alias-state-success-primary)` с фоном `rgba(16,185,129,0.08)`, `var(--dsw-alias-state-warning-primary)` с фоном `rgba(245,158,11,0.08)`, `var(--dsw-alias-state-error-primary)` с фоном `rgba(239,68,68,0.08)`.
+  - Акценты / бейджи: `var(--dsw-alias-state-success-primary)` с фоном `var(--dsw-alias-state-success-bg, var(--dsw-alias-bg-layer-2))` и границей `var(--dsw-alias-state-success-border, var(--dsw-alias-border-l2))`, аналогично для warning (`--dsw-alias-state-warning-*`) и error (`--dsw-alias-state-error-*`). Полный отказ от прямого хардкода `rgba(...)` в пользу CSS-переменных темы хоста.
 - Типографика: Системный шрифт DSH, заголовок карточки 15px/600, подписи 13px, бейджи 12px/500, телеметрия 13px/600.
 - Сетка, отступы, responsive: Скругление карточки 12px, padding 18px 20px, gap 14px, вложенные карточки 8px radius.
 - Accessibility:
@@ -78,7 +79,7 @@
 
 ## Do / Don't
 - Do:
-  - Использовать строго канонический слот `settings.plugin.item`.
+  - Регистрировать основной слот `plugins.item` с фоллбэками `plugins.row.config` и `settings.plugin.item`.
   - Применять переменные темы `--dsw-alias-*`.
   - Использовать `ensureCss()` вне цикла рендера.
   - Оборачивать UI в `ErrorBoundary`.
@@ -86,10 +87,11 @@
   - Использовать функцию интерполяции `makeT(dict, fallback)` с определением активного языка через getActiveLocale.
 - Don't:
   - Занимать боковое меню верхнего уровня (`settings.section`).
-  - Использовать хардкод цветов (#fff, #2da44e и т.д.).
+  - Использовать хардкод цветов (#fff, rgba(...), #2da44e и т.д.).
   - Допускать утечки интервалов таймеров в фоновых процессах.
 
 ## Locked Design Decisions
+- **2026-09-24 (v0.1.14, #41):** Актуализирован дизайн-контракт слотов: документирован переход на основной слот `plugins.item` с поддержкой `plugins.row.config` и легаси `settings.plugin.item`. Из спецификации Foundations полностью устранены устаревшие упоминания прямого `rgba(...)` в пользу канонических системных переменных темы `--dsw-alias-state-*-bg`.
 - **2026-09-18 (v0.1.11, #30):** Поднят патч-релиз 0.1.11 в связи со staged lock (409 Conflict) в реестре npmjs для тега 0.1.10. Состав изменений полностью идентичен проверенному релиз-кандидату 0.1.10.
 - **2026-09-18 (v0.1.10, #20):** Устранены пустые catch в сервере и клиенте. Логирование переведено на канонический `ctx.logger.warn`. При отсутствии `scope.watch` или сбое регистрации настроек плагин предупреждает в журнал и отображает статус неактивной подписки в интерфейсе; осознанный catch при размонтировании помечен комментарием. Добавлены unit-тесты в test/config.test.mjs.
 - **2026-09-18 (v0.1.10, #19):** Релизные артефакты сборки (.tgz) запрещено хранить в рабочем дереве исходников; тестовая сборка pack упаковывается во временный каталог (/tmp) с последующим удалением. Добавлен регрессионный тест в test/identity.test.mjs.
