@@ -2,6 +2,12 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.16
+
+### Security
+- Protected `/api/dsh-usage-guard/telemetry` route with fail-closed caller verification (`isTrustedSettingsRequest`), returning HTTP 403 on cross-site and unauthenticated remote calls (#45).
+- Redacted raw usage samples (`sample`) and provider names (`provider`) from incident records and telemetry snapshots to prevent session metadata leakage (#45).
+
 ## 0.1.15
 
 ### Fixed
