@@ -12,7 +12,7 @@
   - Строчный слот (fallback/row seat): `plugins.row.config` (`key: '@goodandready/dsh-usage-guard:config'`). Рендерит компактный inline summary в строке плагина.
   - Устаревший слот (legacy fallback): `settings.plugin.item` (`key: 'dsh-usage-guard'`). Аккордеонная карточка (`view: 'card'`) в разделе настроек плагинов для старых версий хоста.
   - Свой раздел бокового меню (`settings.section`): **отсутствует / deprecated** (запрещено стандартом DSH для карточек настроек).
-- API: Cordis-плагин, патчит `sessionProjections`. Включает HTTP-маршруты `/api/dsh-usage-guard/telemetry` и `/api/dsh-usage-guard/update`.
+- API: Cordis-плагин, патчит `sessionProjections`. Включает HTTP-маршруты `/api/dsh-usage-guard/telemetry` (защищен политикой доверенных источников `isTrustedSettingsRequest`, без утечки сырых данных) и `/api/dsh-usage-guard/update` (one-click updater с валидацией same-origin и loopback).
 - CLI: Отсутствует (управление через DSH CLI: `dsh plugin --profile web ...`).
 - Документация: `README.md`, `README.ru.md`, `README.zh.md`, `docs/design/DESIGN.md`.
 
@@ -91,6 +91,7 @@
   - Допускать утечки интервалов таймеров в фоновых процессах.
 
 ## Locked Design Decisions
+- **2026-09-26 (v0.1.16, #45):** Маршрут телеметрии `/api/dsh-usage-guard/telemetry` защищен fail-closed политикой доверенных источников `isTrustedSettingsRequest` (403 на cross-site и неавторизованные удаленные запросы, 200 на same-origin, loopback и авторизованный токен). Из структуры инцидентов и снимков телеметрии полностью удалены сырые образцы расхода (`sample`) и имена провайдеров (`provider`), исключая утечку метаданных сессий.
 - **2026-09-24 (v0.1.14, #41):** Актуализирован дизайн-контракт слотов: документирован переход на основной слот `plugins.item` с поддержкой `plugins.row.config` и легаси `settings.plugin.item`. Из спецификации Foundations полностью устранены устаревшие упоминания прямого `rgba(...)` в пользу канонических системных переменных темы `--dsw-alias-state-*-bg`.
 - **2026-09-18 (v0.1.11, #30):** Поднят патч-релиз 0.1.11 в связи со staged lock (409 Conflict) в реестре npmjs для тега 0.1.10. Состав изменений полностью идентичен проверенному релиз-кандидату 0.1.10.
 - **2026-09-18 (v0.1.10, #20):** Устранены пустые catch в сервере и клиенте. Логирование переведено на канонический `ctx.logger.warn`. При отсутствии `scope.watch` или сбое регистрации настроек плагин предупреждает в журнал и отображает статус неактивной подписки в интерфейсе; осознанный catch при размонтировании помечен комментарием. Добавлены unit-тесты в test/config.test.mjs.
