@@ -2,6 +2,21 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.17
+
+### Added
+- Declared all `Config` schema fields (`repair`, `report`, `maxStepTokens`) with `.volatile()` for reactive Settings Forms in DSH 0.2 (#48).
+- Implemented `plainConfig()` unwrapping helper to safely decode reactive proxies and `get()` getter references (#49).
+- Subscribed to `loader/volatile-update` and `settings/document-updated` events to dynamically refresh running `live` config without restarting the harness (#49).
+- Added 15-second network timeouts (`AbortSignal.timeout(15000)`) with localized error feedback (`request_timeout`) across all client `fetch` calls in `lib/client.js` (#52).
+
+### Security
+- Hardened `isTrustedSettingsRequest` in `lib/telemetry.js`: unconditionally reject `cross-site` and `same-site` calls, strictly enforce `origin == host` on browser calls, and prevent origin bypasses on loopback connections (#51).
+
+### Removed
+- Removed obsolete `settings.register()` call and unreached fallback scopes (`scope.get()`, `scope.watch()`) from plugin `apply()`, eliminating startup warnings and failure risks under DSH 0.2 (#47, #50).
+- Removed internal test helper `resetTelemetry` from public module exports in `lib/telemetry.js` (#53).
+
 ## 0.1.16
 
 ### Security
