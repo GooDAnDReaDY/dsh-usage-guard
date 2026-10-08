@@ -113,6 +113,24 @@ test('isTrustedSettingsRequest: валидация доверенных исто
     },
     socket: { remoteAddress: '192.168.1.55' },
   }, { expectedToken: 'valid-secret-token' }), false, 'неверный токен должен быть отклонен')
+
+  // 7. same-site without Origin or Referer is strictly rejected (#51)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      'sec-fetch-site': 'same-site',
+      host: '127.0.0.1:3080',
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+  }), false, 'запрос с sec-fetch-site: same-site без Origin должен быть отклонен')
+
+  // 8. Loopback with mismatched origin rejected (#51)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      origin: 'http://attacker-site.local:9000',
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+  }), false, 'loopback запрос с чужим origin должен быть отклонен')
 })
 
 test('registerTelemetryRoute: 403 на неавторизованные запросы и 200 на авторизованные (#45)', async () => {
