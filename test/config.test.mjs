@@ -30,35 +30,33 @@ test('lib/index.js использует z.natural() и не содержит н�
   assert.doesNotMatch(code, /\.nonnegative\(\)/, 'в схеме schemastery не должно быть вызова .nonnegative()')
 })
 
-test('при сервисе настроек без watch плагин логирует предупреждение и сообщает о работе на значениях по умолчанию (#20)', () => {
+test('lib/index.js не вызывает устаревший settings.register, scope.get или scope.watch (#50)', () => {
+  const code = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(code, /settings\??\.\s*register/, 'в lib/index.js не должно быть вызова settings.register')
+  assert.doesNotMatch(code, /scope\??\.\s*get/, 'в lib/index.js не должно быть вызова scope.get')
+  assert.doesNotMatch(code, /scope\??\.\s*watch/, 'в lib/index.js не должно быть вызова scope.watch')
+})
+
+test('apply() загружается без ошибок и не падает, если хост имеет устаревший или бросающий settings.register (#50)', () => {
   const apply = loadApply()
-  const warnings = []
   const fakeCtx = {
     inject: (deps, fn) => {
       if (deps.includes('settings')) {
         fn({
           settings: {
-            register: () => ({
-              get: () => ({ repair: true, report: true, maxStepTokens: 0 }),
-            }),
-          },
-          logger: {
-            warn: (msg) => warnings.push(msg),
+            register: () => {
+              throw new Error('settings.register is not a function')
+            },
           },
           effect: (cb) => cb(),
         })
       }
     },
-    logger: {
-      warn: (msg) => warnings.push(msg),
-    },
+    logger: { warn: () => {} },
   }
-  apply(fakeCtx)
-  assert.ok(warnings.length > 0, 'должно быть залогировано предупреждение')
-  assert.ok(
-    warnings.some((w) => w.includes('watch') && w.includes('default config')),
-    'предупреждение должно сообщать об отсутствии watch и работе на значениях по умолчанию'
-  )
+  assert.doesNotThrow(() => {
+    apply(fakeCtx, { repair: true })
+  }, 'apply() не должен выбрасывать ошибку из-за settings.register')
 })
 
 test('при ошибке регистрации маршрутов webServer плагин логирует предупреждение (#20)', () => {
