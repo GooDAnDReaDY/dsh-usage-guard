@@ -5,13 +5,13 @@ import {
   recordRescue,
   recordClamped,
   getSnapshot,
-  resetTelemetry,
+  telemetry,
   isTrustedSettingsRequest,
   registerTelemetryRoute,
 } from '../lib/telemetry.js'
 
 test('телеметрия корректно накапливает события спасения и починенные токены', () => {
-  resetTelemetry()
+  telemetry.reset()
   let snap = getSnapshot()
   assert.equal(snap.rescuedEvents, 0)
   assert.equal(snap.fixedTokens, 0)
@@ -29,7 +29,7 @@ test('телеметрия корректно накапливает событ�
 })
 
 test('телеметрия сохраняет кольцевой буфер инцидентов до 20 записей без утечки raw sample и provider (#45)', () => {
-  resetTelemetry()
+  telemetry.reset()
   for (let i = 0; i < 25; i++) {
     recordIncident({
       kind: 'spike-clamped',
@@ -116,7 +116,7 @@ test('isTrustedSettingsRequest: валидация доверенных исто
 })
 
 test('registerTelemetryRoute: 403 на неавторизованные запросы и 200 на авторизованные (#45)', async () => {
-  resetTelemetry()
+  telemetry.reset()
   recordRescue(500)
 
   let registeredRoute = null
