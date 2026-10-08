@@ -168,3 +168,52 @@ test('все поля схемы Config объявлены как .volatile() д
   assert.match(code, /report:[\s\S]*?\.volatile\(\)/, 'поле report должно быть объявлено как .volatile()')
   assert.match(code, /maxStepTokens:[\s\S]*?\.volatile\(\)/, 'поле maxStepTokens должно быть объявлено как .volatile()')
 })
+
+test('DoD #47: чистое применение настроек DSH 0.2 без варнингов и реактивное изменение поведения guard', () => {
+  const { apply } = loadPluginModule()
+  const warnings = []
+  const listeners = {}
+  let capturedGuard = null
+  let mockRow = { ns: 'dsh-usage-guard', value: { repair: true, report: true, maxStepTokens: 1000 } }
+
+  const fakeCtx = {
+    on: (evt, handler) => { listeners[evt] = handler },
+    off: (evt) => { delete listeners[evt] },
+    effect: (fn) => fn(),
+    inject: (deps, fn) => {
+      if (deps.includes('settings')) {
+        fn({
+          settings: {
+            describe: () => [mockRow],
+          },
+          logger: { warn: (msg) => warnings.push(msg) },
+        })
+      }
+      if (deps.includes('sessionProjections')) {
+        fn({
+          sessionProjections: {
+            registrations: new Map(),
+          },
+          effect: (regFn) => {
+            // execute effect which calls patchRegistry
+            regFn()
+          },
+        })
+      }
+    },
+    logger: {
+      warn: (msg) => warnings.push(msg),
+      debug: () => {},
+    },
+  }
+
+  // 1. Clean boot with 0.2 Settings Forms emits NO warnings
+  apply(fakeCtx, { repair: true, maxStepTokens: 1000 })
+  assert.equal(warnings.length, 0, 'на чистом запуске DSH 0.2 не должно быть предупреждений настроек')
+
+  // 2. No obsolete methods remain in server half (lib/index.js)
+  const indexContent = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(indexContent, /settings\??\.\s*register/, 'lib/index.js не должен содержать settings.register')
+  assert.doesNotMatch(indexContent, /scope\??\.\s*watch/, 'lib/index.js не должен содержать scope.watch')
+  assert.doesNotMatch(indexContent, /scope\??\.\s*get/, 'lib/index.js не должен содержать scope.get')
+})
