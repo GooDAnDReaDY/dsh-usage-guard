@@ -239,3 +239,11 @@ test('в client.js отсутствуют самостоятельные rgba и
   const hexMatch = /#[0-9a-fA-F]{3,8}/.exec(code)
   assert.equal(hexMatch, null, 'client.js не должен содержать standalone hex цветов (#18)')
 })
+
+test('все клиентские вызовы fetch содержат signal с таймаутом (#52)', () => {
+  const code = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const matches = [...code.matchAll(/fetch\([^)]+\)/gs)]
+  assert.ok(matches.length >= 3, 'в client.js должно быть найдено не менее 3 вызовов fetch')
+  const timeouts = [...code.matchAll(/signal:\s*AbortSignal\.timeout\(15000\)/g)]
+  assert.equal(timeouts.length, 3, 'все 3 вызова fetch должны использовать AbortSignal.timeout(15000)')
+})
