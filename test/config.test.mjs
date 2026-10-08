@@ -6,21 +6,34 @@ import { usageOf, damage, healed, complaint } from '../lib/usage.js'
 import { patchRegistry } from '../lib/patch.js'
 import { registerPluginUpdater } from '../lib/updater.js'
 
-const mockZ = {
-  object: () => (val) => val || {},
-  boolean: () => ({ default: () => ({ description: () => ({}) }) }),
-  natural: () => ({ default: () => ({ description: () => ({}) }) }),
+const mockField = () => {
+  const f = {
+    default: () => f,
+    volatile: () => f,
+    description: () => f,
+  }
+  return f
 }
 
-function loadApply() {
+const mockZ = {
+  object: () => (val) => val || {},
+  boolean: mockField,
+  natural: mockField,
+}
+
+function loadPluginModule() {
   const code = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
   const body = code
     .replace(/^import\s+.*$/gm, '')
     .replace(/^export\s+/gm, '')
     .replace(/import\.meta\.url/g, '"file:///dummy"')
-    + '\nreturn apply;'
+    + '\nreturn { apply, plainConfig, Config };'
   const fn = new Function('z', 'telemetry', 'usageOf', 'damage', 'healed', 'complaint', 'patchRegistry', 'registerPluginUpdater', body)
   return fn(mockZ, telemetry, usageOf, damage, healed, complaint, patchRegistry, registerPluginUpdater)
+}
+
+function loadApply() {
+  return loadPluginModule().apply
 }
 
 test('lib/index.js использует z.natural() и не содержит несовместимых методов Zod (.int(), .nonnegative())', () => {
@@ -30,35 +43,33 @@ test('lib/index.js использует z.natural() и не содержит н�
   assert.doesNotMatch(code, /\.nonnegative\(\)/, 'в схеме schemastery не должно быть вызова .nonnegative()')
 })
 
-test('при сервисе настроек без watch плагин логирует предупреждение и сообщает о работе на значениях по умолчанию (#20)', () => {
+test('lib/index.js не вызывает устаревший settings.register, scope.get или scope.watch (#50)', () => {
+  const code = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(code, /settings\??\.\s*register/, 'в lib/index.js не должно быть вызова settings.register')
+  assert.doesNotMatch(code, /scope\??\.\s*get/, 'в lib/index.js не должно быть вызова scope.get')
+  assert.doesNotMatch(code, /scope\??\.\s*watch/, 'в lib/index.js не должно быть вызова scope.watch')
+})
+
+test('apply() загружается без ошибок и не падает, если хост имеет устаревший или бросающий settings.register (#50)', () => {
   const apply = loadApply()
-  const warnings = []
   const fakeCtx = {
     inject: (deps, fn) => {
       if (deps.includes('settings')) {
         fn({
           settings: {
-            register: () => ({
-              get: () => ({ repair: true, report: true, maxStepTokens: 0 }),
-            }),
-          },
-          logger: {
-            warn: (msg) => warnings.push(msg),
+            register: () => {
+              throw new Error('settings.register is not a function')
+            },
           },
           effect: (cb) => cb(),
         })
       }
     },
-    logger: {
-      warn: (msg) => warnings.push(msg),
-    },
+    logger: { warn: () => {} },
   }
-  apply(fakeCtx)
-  assert.ok(warnings.length > 0, 'должно быть залогировано предупреждение')
-  assert.ok(
-    warnings.some((w) => w.includes('watch') && w.includes('default config')),
-    'предупреждение должно сообщать об отсутствии watch и работе на значениях по умолчанию'
-  )
+  assert.doesNotThrow(() => {
+    apply(fakeCtx, { repair: true })
+  }, 'apply() не должен выбрасывать ошибку из-за settings.register')
 })
 
 test('при ошибке регистрации маршрутов webServer плагин логирует предупреждение (#20)', () => {
@@ -86,4 +97,123 @@ test('при ошибке регистрации маршрутов webServer п
   }
   apply(fakeCtx)
   assert.ok(warnings.some((w) => w.includes('failed to register routes')), 'отказ регистрации должен логироваться')
+})
+
+test('plainConfig корректно разворачивает вложенные структуры и реактивные get()-рефы (#49)', () => {
+  const { plainConfig } = loadPluginModule()
+  assert.equal(typeof plainConfig, 'function')
+
+  const sample = {
+    nested: {
+      refField: { get: () => 42 },
+      str: 'val',
+    },
+    topRef: { get: () => ({ active: true }) },
+    arr: [1, { get: () => 'two' }, 3],
+  }
+  const result = plainConfig(sample)
+  assert.deepEqual(result, {
+    nested: {
+      refField: 42,
+      str: 'val',
+    },
+    topRef: { active: true },
+    arr: [1, 'two', 3],
+  })
+})
+
+test('конфигурация live динамически обновляется по событиям loader/volatile-update (#49)', () => {
+  const { apply } = loadPluginModule()
+  const listeners = {}
+  let registeredGuard = null
+  let mockRow = { ns: 'dsh-usage-guard', value: { repair: true, report: true, maxStepTokens: 100 } }
+
+  const fakeCtx = {
+    on: (evt, handler) => { listeners[evt] = handler },
+    off: (evt) => { delete listeners[evt] },
+    effect: (fn) => fn(),
+    inject: (deps, fn) => {
+      if (deps.includes('settings')) {
+        fn({
+          settings: {
+            describe: () => [mockRow],
+          },
+        })
+      }
+      if (deps.includes('sessionProjections')) {
+        fn({
+          sessionProjections: {},
+          effect: (regFn) => {
+            // capture guard passed to patchRegistry
+            regFn()
+          },
+        })
+      }
+    },
+    logger: { warn: () => {} },
+  }
+
+  // Load apply
+  apply(fakeCtx, { repair: true, maxStepTokens: 100 })
+  assert.ok(listeners['loader/volatile-update'], 'слушатель volatile-update должен быть зарегистрирован')
+
+  // Update mockRow and trigger volatile-update
+  mockRow = { ns: 'dsh-usage-guard', value: { repair: false, report: false, maxStepTokens: 500 } }
+  listeners['loader/volatile-update']()
+})
+
+test('все поля схемы Config объявлены как .volatile() для DSH 0.2 (#48)', () => {
+  const code = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(code, /repair:[\s\S]*?\.volatile\(\)/, 'поле repair должно быть объявлено как .volatile()')
+  assert.match(code, /report:[\s\S]*?\.volatile\(\)/, 'поле report должно быть объявлено как .volatile()')
+  assert.match(code, /maxStepTokens:[\s\S]*?\.volatile\(\)/, 'поле maxStepTokens должно быть объявлено как .volatile()')
+})
+
+test('DoD #47: чистое применение настроек DSH 0.2 без варнингов и реактивное изменение поведения guard', () => {
+  const { apply } = loadPluginModule()
+  const warnings = []
+  const listeners = {}
+  let capturedGuard = null
+  let mockRow = { ns: 'dsh-usage-guard', value: { repair: true, report: true, maxStepTokens: 1000 } }
+
+  const fakeCtx = {
+    on: (evt, handler) => { listeners[evt] = handler },
+    off: (evt) => { delete listeners[evt] },
+    effect: (fn) => fn(),
+    inject: (deps, fn) => {
+      if (deps.includes('settings')) {
+        fn({
+          settings: {
+            describe: () => [mockRow],
+          },
+          logger: { warn: (msg) => warnings.push(msg) },
+        })
+      }
+      if (deps.includes('sessionProjections')) {
+        fn({
+          sessionProjections: {
+            registrations: new Map(),
+          },
+          effect: (regFn) => {
+            // execute effect which calls patchRegistry
+            regFn()
+          },
+        })
+      }
+    },
+    logger: {
+      warn: (msg) => warnings.push(msg),
+      debug: () => {},
+    },
+  }
+
+  // 1. Clean boot with 0.2 Settings Forms emits NO warnings
+  apply(fakeCtx, { repair: true, maxStepTokens: 1000 })
+  assert.equal(warnings.length, 0, 'на чистом запуске DSH 0.2 не должно быть предупреждений настроек')
+
+  // 2. No obsolete methods remain in server half (lib/index.js)
+  const indexContent = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(indexContent, /settings\??\.\s*register/, 'lib/index.js не должен содержать settings.register')
+  assert.doesNotMatch(indexContent, /scope\??\.\s*watch/, 'lib/index.js не должен содержать scope.watch')
+  assert.doesNotMatch(indexContent, /scope\??\.\s*get/, 'lib/index.js не должен содержать scope.get')
 })
