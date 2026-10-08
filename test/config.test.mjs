@@ -6,10 +6,19 @@ import { usageOf, damage, healed, complaint } from '../lib/usage.js'
 import { patchRegistry } from '../lib/patch.js'
 import { registerPluginUpdater } from '../lib/updater.js'
 
+const mockField = () => {
+  const f = {
+    default: () => f,
+    volatile: () => f,
+    description: () => f,
+  }
+  return f
+}
+
 const mockZ = {
   object: () => (val) => val || {},
-  boolean: () => ({ default: () => ({ description: () => ({}) }) }),
-  natural: () => ({ default: () => ({ description: () => ({}) }) }),
+  boolean: mockField,
+  natural: mockField,
 }
 
 function loadPluginModule() {
@@ -151,4 +160,11 @@ test('конфигурация live динамически обновляетс�
   // Update mockRow and trigger volatile-update
   mockRow = { ns: 'dsh-usage-guard', value: { repair: false, report: false, maxStepTokens: 500 } }
   listeners['loader/volatile-update']()
+})
+
+test('все поля схемы Config объявлены как .volatile() для DSH 0.2 (#48)', () => {
+  const code = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(code, /repair:[\s\S]*?\.volatile\(\)/, 'поле repair должно быть объявлено как .volatile()')
+  assert.match(code, /report:[\s\S]*?\.volatile\(\)/, 'поле report должно быть объявлено как .volatile()')
+  assert.match(code, /maxStepTokens:[\s\S]*?\.volatile\(\)/, 'поле maxStepTokens должно быть объявлено как .volatile()')
 })
