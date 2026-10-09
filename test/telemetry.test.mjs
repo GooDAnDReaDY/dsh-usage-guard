@@ -131,6 +131,49 @@ test('isTrustedSettingsRequest: валидация доверенных исто
     },
     socket: { remoteAddress: '127.0.0.1' },
   }), false, 'loopback запрос с чужим origin должен быть отклонен')
+
+  // 9. DSH Desktop Electron non-http referer on loopback allowed (#55)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      referer: 'dsh-app://app/',
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+  }), true, 'DSH Desktop с referer dsh-app:// на loopback должен быть разрешен')
+
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      referer: 'dsh-app://app/',
+    },
+    socket: { remoteAddress: '::1' },
+  }), true, 'DSH Desktop с referer dsh-app:// на IPv6 loopback должен быть разрешен')
+
+  // 10. Non-http referer from remote caller rejected (#55)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      referer: 'dsh-app://app/',
+    },
+    socket: { remoteAddress: '192.168.1.55' },
+  }), false, 'запрос с referer dsh-app:// от удаленного адреса должен быть отклонен')
+
+  // 11. Mismatched http/https referer rejected even on loopback (#51, #55)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      referer: 'http://evil-attacker.com/exploit',
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+  }), false, 'чужой http referer даже с loopback должен быть отклонен')
+
+  assert.equal(isTrustedSettingsRequest({
+    headers: {
+      host: '127.0.0.1:3080',
+      referer: 'https://evil-attacker.com/exploit',
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+  }), false, 'чужой https referer даже с loopback должен быть отклонен')
 })
 
 test('registerTelemetryRoute: 403 на неавторизованные запросы и 200 на авторизованные (#45)', async () => {
@@ -206,6 +249,29 @@ test('registerTelemetryRoute: 403 на неавторизованные запр
     const parsed = JSON.parse(writtenData)
     assert.equal(parsed.rescuedEvents, 1)
     assert.equal(parsed.fixedTokens, 500)
+  }
+
+  // E. DSH Desktop request (referer: dsh-app://app/ without origin or sec-fetch-site) -> 200 OK (#55)
+  {
+    let statusCode = 0
+    let writtenData = ''
+    const fakeReq = {
+      method: 'GET',
+      headers: {
+        host: '127.0.0.1:3080',
+        referer: 'dsh-app://app/',
+      },
+      socket: { remoteAddress: '127.0.0.1' },
+    }
+    const fakeRes = {
+      writeHead: (status) => { statusCode = status },
+      end: (data) => { writtenData = data },
+    }
+
+    await registeredRoute.handler(fakeReq, fakeRes)
+    assert.equal(statusCode, 200, 'DSH Desktop loopback запрос с dsh-app:// реферером должен получить 200')
+    const parsed = JSON.parse(writtenData)
+    assert.equal(parsed.rescuedEvents, 1)
   }
 
   // D. HEAD request handling: 200 without body when authorized, 403 without body when unauthorized
