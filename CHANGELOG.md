@@ -2,6 +2,11 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.18
+
+### Fixed
+- Allowed non-HTTP referer schemes (e.g. `dsh-app://` from Electron in DSH Desktop) to pass through to loopback socket authorization in `isTrustedSettingsRequest`, resolving `403 Forbidden` on telemetry and reset calls (#55).
+
 ## 0.1.17
 
 ### Added
