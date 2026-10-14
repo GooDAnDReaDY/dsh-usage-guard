@@ -2,6 +2,12 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.19
+
+### Fixed
+- Removed `--config.minimumReleaseAge=0` override flag from one-click plugin updater arguments in `lib/updater.js` to strictly respect profile supply-chain release age policies (#58).
+- Exported `buildInstallArgs` helper for transparent and testable command construction (#58).
+
 ## 0.1.18
 
 ### Fixed
