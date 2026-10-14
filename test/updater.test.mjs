@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { isTrustedUpdateRequest, registerPluginUpdater, findDshCliEntry } from '../lib/updater.js'
+import { isTrustedUpdateRequest, registerPluginUpdater, findDshCliEntry, buildInstallArgs } from '../lib/updater.js'
 
 test('isTrustedUpdateRequest отклоняет нелокальные и недоверенные запросы', () => {
   // Отсутствие заголовка x-dsh-plugin-update
@@ -132,4 +132,24 @@ test('findDshCliEntry корректно разыменовывает симли
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
+})
+
+test('buildInstallArgs не передает --config.minimumReleaseAge=0 (#58)', () => {
+  const args = buildInstallArgs('/path/to/dsh', 'web', '@goodandready/dsh-usage-guard@0.1.18', {
+    registry: 'https://registry.npmjs.org/',
+  })
+  assert.deepEqual(args, [
+    '/path/to/dsh',
+    'plugin',
+    '--profile',
+    'web',
+    'add',
+    '@goodandready/dsh-usage-guard@0.1.18',
+    '--registry=https://registry.npmjs.org/',
+  ])
+  assert.equal(
+    args.includes('--config.minimumReleaseAge=0'),
+    false,
+    'флаг --config.minimumReleaseAge=0 должен быть исключен (#58)'
+  )
 })
