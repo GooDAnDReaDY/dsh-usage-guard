@@ -57,5 +57,6 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"
-  }
+  },
+  "packageManager": "npm@12.0.1"
 }
