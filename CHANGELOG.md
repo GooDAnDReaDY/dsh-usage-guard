@@ -2,6 +2,19 @@
 
 Notable changes to `@goodandready/dsh-usage-guard`.
 
+## 0.1.20
+
+### Added
+- Standardized project documentation: added root `index.md` project card with full test coverage matrix and `AGENTS.md` specifying repository governance, identity 4-way match, and publication safety rules (#60).
+- Declared `packageManager: "npm@12.0.1"` in `package.json` and generated committed `package-lock.json` with reproducible dependency resolution (#61).
+- Added `.gitattributes` with `export-ignore` rules for internal docs and worktrees (#60).
+
+### Security
+- Verified zero production vulnerabilities via `npm audit --omit=dev` against locked dependencies (#61).
+
+### Documentation
+- Cleaned up `README.md`, `README.ru.md`, and `README.zh.md` to remove references to unpublished `docs/design/` directories (#60).
+
 ## 0.1.19
 
 ### Fixed
