@@ -214,7 +214,7 @@ Logs informative diagnostic warnings naming the exact session, turn, step, raw p
   - Complete trilingual localization for English, Russian, and Chinese (`en`, `ru`, `zh`).
   - Graceful fallback slot `settings.section` for legacy core versions without the plugin settings tab.
 * **Design Contract**:
-  - Added official UI design contract in `docs/design/DESIGN.md` complying with `project-design-contract` and `dsh-ui-design`.
+  - Complies with official DSH UI design guidelines (`project-design-contract` and `dsh-ui-design`).
 
 ---
 

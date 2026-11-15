@@ -1,0 +1,8 @@
+AGENTS.md        export-ignore
+index.md         export-ignore
+deploy.sh        export-ignore
+.gitattributes   export-ignore
+docs/**          export-ignore
+test/**          export-ignore
+scripts/**       export-ignore
+.worktrees/      export-ignore
