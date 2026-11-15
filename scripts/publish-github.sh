@@ -50,6 +50,7 @@ EXTRA_ALLOW=(
 FORBIDDEN=(
   "AGENTS.md"
   "index.md"
+  "docs"
   "deploy.sh"
   ".gitea"
   ".worktrees"

@@ -140,8 +140,8 @@ graph LR
   - 严格遵循 DSH 原生设计规范（CSS 变量、12px 圆角、核心折叠图标 `IconChevronDownOutline14`、无障碍 `aria-expanded`）。
   - 提供中、英、俄完整三语本地化支持（`zh` / `en` / `ru`）。
   - 内置 `settings.section` 降级容错机制。
-* **设计契约**：
-  - 补充 `docs/design/DESIGN.md`，符合 `project-design-contract` 和 `dsh-ui-design` 标准。
+* **设计规范**：
+  - 符合 DSH UI 官方设计标准（`project-design-contract` 与 `dsh-ui-design`）。
 
 ---
 
